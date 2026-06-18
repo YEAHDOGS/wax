@@ -4,8 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev:mock": "vite --mode mock",
+    "dev:live": "vite --mode live",
     "build": "vite build",
+    "build:prod": "vite build --mode production",
     "preview": "vite preview"
   },
   "devDependencies": {
@@ -19,7 +21,8 @@
   "dependencies": {
     "@lucide/svelte": "^1.21.0",
     "daisyui": "^5.5.23",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "surrealdb": "^2.0.3"
   },
   "allowScripts": {
     "@parcel/watcher@2.5.6": true

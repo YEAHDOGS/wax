@@ -77,3 +77,49 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(156, 163, 175, 0.5);
 }
+
+/* Contrast and legibility improvements for small and light texts */
+.text-xs {
+  font-weight: 600; /* Medium-bold for readability */
+  letter-spacing: 0.025em;
+  opacity: 1 !important; /* Prevent dimming */
+}
+
+.text-sm {
+  font-weight: 500;
+  opacity: 1 !important;
+}
+
+.badge {
+  font-weight: 600;
+  border-width: 1.5px;
+}
+
+/* Ensure strong contrast for helper labels and neutral content text */
+.label-text, .label-text-alt {
+  font-weight: 600 !important;
+  color: currentColor !important;
+  opacity: 0.95 !important;
+}
+
+.text-neutral-content, .text-muted, .text-opacity-70 {
+  color: currentColor !important;
+  opacity: 1 !important;
+  font-weight: 500;
+}
+
+.card-title {
+  font-weight: 700;
+}
+
+/* Smooth typing transition for details */
+.typing-cursor {
+  border-right: 2px solid currentColor;
+  animation: blink 0.7s step-end infinite;
+}
+
+@keyframes blink {
+  from, to { border-color: transparent }
+  50% { border-color: currentColor }
+}
+

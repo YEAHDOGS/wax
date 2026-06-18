@@ -11,8 +11,11 @@
     Calendar,
     Globe,
     Compass,
-    Radio
+    Radio,
+    ExternalLink,
+    Lock
   } from '@lucide/svelte';
+  import MatrixText from './MatrixText.svelte';
 
   let searchQuery = $state('');
   let selectedGenre = $state('All');
@@ -52,6 +55,57 @@
 
   // Extract all unique genres for filter options
   let genres = $derived(['All', ...new Set(appState.crate.map(item => item.genre))]);
+
+  // Jukebox and Grouping view states
+  let viewMode = $state('grid'); // 'grid' or 'jukebox'
+  let groupVariants = $state(false);
+  let activeJukeboxIndex = $state(0);
+
+  // Grouped or ungrouped crate representation
+  let displayCrate = $derived(
+    (() => {
+      const base = filteredCrate;
+      if (!groupVariants) {
+        return base.map(item => ({
+          ...item,
+          variants: [item],
+          allColors: [item.color || '#3b82f6']
+        }));
+      }
+      
+      const groups = {};
+      base.forEach(item => {
+        const key = `${item.artist.toLowerCase()}::${item.album.toLowerCase()}`;
+        if (!groups[key]) {
+          groups[key] = {
+            id: item.id,
+            artist: item.artist,
+            album: item.album,
+            genre: item.genre,
+            year: item.year,
+            coverUrl: item.coverUrl,
+            color: item.color,
+            discogsUrl: item.discogsUrl,
+            retailer: item.retailer,
+            rating: item.rating,
+            notes: item.notes,
+            variants: [item],
+            allColors: [item.color || '#3b82f6']
+          };
+        } else {
+          groups[key].variants.push(item);
+          if (item.color) groups[key].allColors.push(item.color);
+        }
+      });
+      return Object.values(groups);
+    })()
+  );
+
+  $effect(() => {
+    if (activeJukeboxIndex >= displayCrate.length) {
+      activeJukeboxIndex = Math.max(0, displayCrate.length - 1);
+    }
+  });
 
   function handleSaveRecord() {
     actions.addToCrate({ ...recordForm });
@@ -175,10 +229,10 @@
     </button>
   </div>
 
-  <!-- Filters Row -->
-  <div class="flex flex-col md:flex-row gap-4 items-center bg-base-200 border border-base-300 p-4 rounded-xl shadow-md">
+  <!-- Filters & View Toggles Row -->
+  <div class="flex flex-col xl:flex-row gap-4 items-center bg-base-200 border border-base-300 p-4 rounded-xl shadow-md">
     <!-- Search -->
-    <div class="relative w-full md:flex-grow">
+    <div class="relative w-full xl:flex-grow">
       <Search class="absolute left-3.5 top-3.5 h-4 w-4 text-neutral-content" />
       <input 
         type="text" 
@@ -188,30 +242,207 @@
       />
     </div>
 
-    <!-- Genre Select -->
-    <div class="w-full md:w-48">
-      <select class="select select-bordered w-full" bind:value={selectedGenre}>
-        <option disabled selected>Filter by Genre</option>
-        {#each genres as genre}
-          <option value={genre}>{genre}</option>
-        {/each}
-      </select>
+    <!-- Controls blocks -->
+    <div class="flex flex-wrap items-center justify-between sm:justify-start gap-4 w-full xl:w-auto">
+      <!-- Genre Select -->
+      <div class="w-full sm:w-44">
+        <select class="select select-bordered w-full" bind:value={selectedGenre}>
+          <option disabled selected>Filter by Genre</option>
+          {#each genres as genre}
+            <option value={genre}>{genre}</option>
+          {/each}
+        </select>
+      </div>
+
+      <!-- Cumulative variant grouping checkbox -->
+      <div class="form-control bg-base-300/50 border border-base-300 px-3 py-2 rounded-lg">
+        <label class="label cursor-pointer flex gap-2.5 py-0 select-none">
+          <input 
+            type="checkbox" 
+            class="checkbox checkbox-primary checkbox-sm animate-pulse" 
+            bind:checked={groupVariants}
+          />
+          <span class="label-text text-xs font-bold">Group Pressings</span>
+        </label>
+      </div>
+
+      <!-- View Selector -->
+      <div class="join shadow-md">
+        <button 
+          onclick={() => viewMode = 'grid'} 
+          class="btn btn-sm join-item {viewMode === 'grid' ? 'btn-primary' : 'btn-neutral'}"
+        >
+          Grid
+        </button>
+        <button 
+          onclick={() => { viewMode = 'jukebox'; activeJukeboxIndex = 0; }} 
+          class="btn btn-sm join-item {viewMode === 'jukebox' ? 'btn-primary' : 'btn-neutral'}"
+        >
+          Jukebox
+        </button>
+      </div>
     </div>
   </div>
 
-  <!-- Catalog Card Grid -->
-  {#if filteredCrate.length === 0}
+  <!-- Catalog Main Visual Area -->
+  {#if displayCrate.length === 0}
     <div class="py-20 text-center bg-base-200 border border-base-300 rounded-2xl shadow-inner space-y-3">
       <Disc class="h-12 w-12 text-neutral-content/40 mx-auto animate-spin-slow-paused" />
-      <p class="font-semibold text-neutral-content">Your Crate is Empty</p>
+      <p class="font-semibold text-neutral-content">No vinyl matches in your crate</p>
       <p class="text-xs text-neutral-content/60 max-w-sm mx-auto">
-        Search and add custom records manually, import from Discogs, or click "Add to Crate" directly from matched drop alerts!
+        Search and add custom records manually, import from Discogs, or check your search terms.
       </p>
-      <button onclick={() => showModal = true} class="btn btn-primary btn-sm mt-2">Add First Record</button>
+      <button onclick={() => showModal = true} class="btn btn-primary btn-sm mt-2">Add Record</button>
+    </div>
+  {:else if viewMode === 'jukebox'}
+    <!-- Jukebox 3D Overlapping Stack Slider -->
+    <div class="relative w-full max-w-4xl mx-auto flex flex-col items-center bg-neutral/20 border border-base-300 p-6 rounded-2xl shadow-xl backdrop-blur-md overflow-hidden">
+      <!-- Turntable glow background effect -->
+      <div class="absolute -top-20 left-1/2 -translate-x-1/2 w-72 h-72 rounded-full bg-primary/10 blur-3xl pointer-events-none"></div>
+      
+      <!-- Carousel Deck -->
+      <div class="relative flex items-center justify-between w-full h-80">
+        <!-- Prev Button -->
+        <button 
+          onclick={() => activeJukeboxIndex = (activeJukeboxIndex - 1 + displayCrate.length) % displayCrate.length} 
+          class="btn btn-circle btn-primary btn-outline neon-glow-primary z-30"
+          aria-label="Previous record"
+        >
+          ❮
+        </button>
+
+        <!-- Stack Container -->
+        <div class="relative flex-grow flex justify-center items-center h-full perspective-1000 select-none">
+          {#each displayCrate as item, i (item.album + '::' + item.artist + '::' + i)}
+            {@const offset = i - activeJukeboxIndex}
+            {@const absOffset = Math.abs(offset)}
+            {#if absOffset <= 2}
+              <button
+                onclick={() => activeJukeboxIndex = i}
+                class="absolute w-48 h-48 sm:w-56 sm:h-56 cursor-pointer focus:outline-none transition-all duration-500 rounded-lg overflow-hidden shadow-2xl"
+                style="
+                  transform: translateX({offset * 130}px) translateZ({-absOffset * 90}px) rotateY({offset * -18}deg);
+                  z-index: {100 - absOffset};
+                  opacity: {1 - absOffset * 0.35};
+                "
+              >
+                <!-- Album cover image -->
+                <img 
+                  src={item.coverUrl || 'https://images.unsplash.com/photo-1603048588665-791ca8aea617?auto=format&fit=crop&w=400&q=80'} 
+                  alt={item.album} 
+                  class="w-full h-full object-cover border-2 {absOffset === 0 ? 'border-primary' : 'border-base-300'}" 
+                />
+                
+                <!-- Overlay badge for pressings count -->
+                {#if item.variants.length > 1}
+                  <div class="absolute top-2 right-2 badge badge-accent text-xs font-bold shadow-md">
+                    {item.variants.length} Pressings
+                  </div>
+                {/if}
+              </button>
+            {/if}
+          {/each}
+        </div>
+
+        <!-- Next Button -->
+        <button 
+          onclick={() => activeJukeboxIndex = (activeJukeboxIndex + 1) % displayCrate.length} 
+          class="btn btn-circle btn-primary btn-outline neon-glow-primary z-30"
+          aria-label="Next record"
+        >
+          ❯
+        </button>
+      </div>
+
+      <!-- Active Record Details Panel -->
+      {#if displayCrate[activeJukeboxIndex]}
+        {@const activeItem = displayCrate[activeJukeboxIndex]}
+        <div class="w-full mt-6 bg-base-300/50 p-6 rounded-xl border border-base-300/80 space-y-4">
+          <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-base-300 pb-4">
+            <div class="space-y-1">
+              <span class="badge badge-neutral font-semibold uppercase tracking-wider">{activeItem.genre}</span>
+              <!-- Matrix type animation for titles -->
+              <h2 class="text-2xl font-black text-primary flex items-center gap-2">
+                <MatrixText text={activeItem.album} />
+                <span class="text-xs font-normal text-neutral-content">({activeItem.year})</span>
+              </h2>
+              <h3 class="text-lg font-bold text-neutral-content">
+                by <MatrixText text={activeItem.artist} />
+              </h3>
+            </div>
+            
+            <div class="flex gap-2">
+              {#if activeItem.variants.some(v => v.retailer === 'Discogs Collection' || v.discogsUrl)}
+                <div class="badge badge-neutral flex items-center gap-1 py-3 px-3 shadow" title="Discogs Synced (Read-only)">
+                  <Lock class="h-3 w-3 text-warning animate-pulse" />
+                  <span class="text-xs">Discogs Read-Only</span>
+                </div>
+              {/if}
+              {#if activeItem.discogsUrl}
+                <a href={activeItem.discogsUrl} target="_blank" rel="noreferrer" class="btn btn-sm btn-outline flex items-center gap-1.5 shadow">
+                  <ExternalLink class="h-3.5 w-3.5" />
+                  Discogs Page
+                </a>
+              {/if}
+            </div>
+          </div>
+
+          <!-- Variants details stack -->
+          <div class="space-y-3">
+            <h4 class="text-xs uppercase tracking-wider font-bold text-neutral-content/75">Pressings Owned ({activeItem.variants.length})</h4>
+            <div class="grid grid-cols-1 gap-3">
+              {#each activeItem.variants as variant}
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 rounded-lg bg-base-200 border border-base-300 gap-2">
+                  <div class="space-y-1">
+                    <div class="flex items-center gap-2 text-sm font-semibold">
+                      <span class="w-3.5 h-3.5 rounded-full inline-block flex-shrink-0 border border-black/35" style="background-color: {variant.color || '#3b82f6'}"></span>
+                      <span>{variant.variant || 'Standard Pressing'}</span>
+                    </div>
+                    <div class="text-xs text-neutral-content/85 flex flex-wrap gap-x-3 gap-y-1">
+                      <span>Source: <strong>{variant.retailer}</strong></span>
+                      <span>Pressing Year: <strong>{variant.year}</strong></span>
+                    </div>
+                    {#if variant.notes}
+                      <p class="text-xs italic text-neutral-content/75 mt-1">"{variant.notes}"</p>
+                    {/if}
+                  </div>
+                  
+                  <div class="flex items-center gap-3 self-end sm:self-auto">
+                    <!-- Rating -->
+                    <div class="flex gap-0.5">
+                      {#each Array(5) as _, r}
+                        <Star class="h-3 w-3 {r < variant.rating ? 'text-warning fill-warning' : 'text-neutral-content/30'}" />
+                      {/each}
+                    </div>
+
+                    <!-- Lock / Delete controller -->
+                    {#if variant.retailer === 'Discogs Collection' || variant.discogsUrl}
+                      <span class="badge badge-sm badge-neutral flex items-center gap-1 text-[10px]" title="Discogs Synced (Cannot delete)">
+                        <Lock class="h-2.5 w-2.5 text-warning" />
+                        Locked
+                      </span>
+                    {:else}
+                      <button 
+                        onclick={() => actions.removeFromCrate(variant.id)} 
+                        class="btn btn-ghost btn-xs text-error btn-square hover:bg-error/15"
+                        title="Remove pressing"
+                        aria-label="Remove pressing"
+                      >
+                        <Trash2 class="h-3.5 w-3.5" />
+                      </button>
+                    {/if}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        </div>
+      {/if}
     </div>
   {:else}
+    <!-- Grid View of Album Cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-      {#each filteredCrate as item (item.id)}
+      {#each displayCrate as item (item.album + '::' + item.artist)}
         <div class="card bg-base-200 border border-base-300 shadow-xl overflow-hidden group hover:border-primary/50 transition-all duration-300">
           <div class="flex p-4 gap-4 items-center relative">
             <!-- Vinyl Album Jacket Cover -->
@@ -227,7 +458,7 @@
                 class="absolute inset-y-0 w-28 h-28 rounded-full z-0 flex items-center justify-center transition-all duration-500 transform group-hover:translate-x-8 animate-spin-slow-paused group-hover:animate-spin-slow"
                 style="background: radial-gradient(circle, #2e1065 15%, #09090b 25%, #18181b 35%, #09090b 45%, #1e293b 55%, #09090b 70%); border: 1px solid #1e293b; left: 0;"
               >
-                <!-- Vinyl center colorway tag matching the physical variant color -->
+                <!-- Vinyl center colorway tag -->
                 <div 
                   class="w-8 h-8 rounded-full border-2 border-black"
                   style="background-color: {item.color || '#f43f5e'}"
@@ -244,12 +475,18 @@
               <h2 class="font-bold text-lg leading-snug line-clamp-1 mt-1">{item.album}</h2>
               <p class="text-sm font-semibold text-neutral-content line-clamp-1">{item.artist}</p>
               
-              <div class="text-xs text-neutral-content/90 line-clamp-1 mt-1.5 flex items-center gap-1.5">
-                <span 
-                  class="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0"
-                  style="background-color: {item.color || '#3b82f6'}"
-                ></span>
-                <span class="line-clamp-1">{item.variant}</span>
+              <!-- Visual Pressing dots indicator -->
+              <div class="text-xs text-neutral-content/90 line-clamp-1 mt-1.5 flex items-center gap-1.5 flex-wrap">
+                {#each item.variants as variant}
+                  <span 
+                    class="w-3.5 h-3.5 rounded-full inline-block flex-shrink-0 border border-black/30"
+                    style="background-color: {variant.color || '#3b82f6'}"
+                    title={variant.variant}
+                  ></span>
+                {/each}
+                <span class="line-clamp-1 text-[10px]">
+                  {item.variants.length > 1 ? `${item.variants.length} pressings` : item.variants[0].variant}
+                </span>
               </div>
 
               <!-- Rating -->
@@ -263,22 +500,53 @@
 
           <!-- Bottom Action Drawer -->
           <div class="bg-base-300/60 border-t border-base-300 px-4 py-2.5 flex justify-between items-center">
-            <span class="text-[10px] text-neutral-content font-medium line-clamp-1 flex items-center gap-1">
+            <span class="text-[10px] text-neutral-content font-medium line-clamp-1 flex items-center gap-1.5">
               <Globe class="h-3 w-3" />
-              Source: {item.retailer}
+              Source: {item.variants.length > 1 ? 'Multiple' : item.retailer}
+              {#if item.discogsUrl}
+                <a 
+                  href={item.discogsUrl} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  class="badge badge-sm badge-neutral hover:bg-neutral-content hover:text-neutral transition-colors flex items-center gap-0.5 ml-1 p-2"
+                  title="Open Discogs release page"
+                >
+                  <ExternalLink class="h-2.5 w-2.5" />
+                  Discogs
+                </a>
+              {/if}
             </span>
-            <button 
-              onclick={() => actions.removeFromCrate(item.id)}
-              class="btn btn-ghost btn-xs text-error btn-square hover:bg-error/15"
-              title="Remove from Crate"
-              aria-label="Remove from Crate"
-            >
-              <Trash2 class="h-3.5 w-3.5" />
-            </button>
+            
+            {#if item.variants.length > 1}
+              <button 
+                onclick={() => { viewMode = 'jukebox'; activeJukeboxIndex = displayCrate.indexOf(item); }}
+                class="badge badge-sm badge-primary hover:badge-accent transition-colors flex items-center gap-0.5 font-bold cursor-pointer"
+                title="Manage pressings in Jukebox Slider"
+              >
+                Manage Stack
+              </button>
+            {:else}
+              {@const singleVar = item.variants[0]}
+              {#if singleVar.retailer === 'Discogs Collection' || singleVar.discogsUrl}
+                <span class="badge badge-sm badge-neutral flex items-center gap-1 font-semibold" title="Discogs Synced (Read-only)">
+                  <Lock class="h-2.5 w-2.5 text-warning" />
+                  Locked
+                </span>
+              {:else}
+                <button 
+                  onclick={() => actions.removeFromCrate(singleVar.id)}
+                  class="btn btn-ghost btn-xs text-error btn-square hover:bg-error/15"
+                  title="Remove from Crate"
+                  aria-label="Remove from Crate"
+                >
+                  <Trash2 class="h-3.5 w-3.5" />
+                </button>
+              {/if}
+            {/if}
           </div>
 
           <!-- Hover expansion: pressing notes -->
-          {#if item.notes}
+          {#if item.notes && item.variants.length === 1}
             <div class="px-4 pb-3 pt-1 bg-base-300/60 text-xs text-neutral-content border-t border-base-300/30">
               <p class="italic leading-relaxed">"{item.notes}"</p>
             </div>

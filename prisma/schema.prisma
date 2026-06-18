@@ -1,0 +1,26 @@
+// Prisma schema file for local Relational SQLite fallback option
+// Run: npx prisma db push to apply changes
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model VinylRecord {
+  id        String   @id @default(uuid())
+  artist    String
+  album     String
+  variant   String
+  retailer  String
+  year      Int
+  genre     String
+  rating    Int      @default(5)
+  coverUrl  String?
+  notes     String?
+  color     String   @default("#3b82f6")
+  createdAt DateTime @default(now())
+}

@@ -27,7 +27,7 @@ WaxOnWax eliminates the frustration of missing out on limited-edition vinyl drop
 
 * **Frontend:** Svelte + Vite (Lightning-fast reactivity and build times)
 * **Styling:** TailwindCSS + SCSS (Utility-first framework supercharged with structured nesting and variables)
-* **Backend/Database:** Supabase (PostgreSQL for user data, collection storage, and real-time synchronization)
+* **Backend/Database:** SurrealDB
 * **Background Workers:** Node.js / Python cron workers for continuous forum ingestion.
 * **APIs:** Reddit JSON API, Twilio API (SMS), Resend API (Email), Discogs API (Metadata parsing).
 
@@ -37,11 +37,11 @@ WaxOnWax eliminates the frustration of missing out on limited-edition vinyl drop
 
 ### Prerequisites
 * Node.js (v18 or higher)
-* A Supabase project instance
+* A SurrealDB project instance
 * Reddit API credentials
 
 ### Installation
 1. Clone the repository:
 ```bash
-   git clone [https://github.com/yourusername/waxonwax.git](https://github.com/yourusername/waxonwax.git)
-   cd waxonwax
+   git clone [https://github.com/REDACTED/wax.git](https://github.com/REDACTED/wax.git)
+   cd wax

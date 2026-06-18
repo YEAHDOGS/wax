@@ -2,11 +2,18 @@
   import Navbar from './lib/Navbar.svelte';
   import AlertsEngine from './lib/AlertsEngine.svelte';
   import CrateCatalog from './lib/CrateCatalog.svelte';
+  import ChecklistPanel from './lib/ChecklistPanel.svelte';
   import StatsPanel from './lib/StatsPanel.svelte';
   import SocialFeed from './lib/SocialFeed.svelte';
   import Achievements from './lib/Achievements.svelte';
   import Settings from './lib/Settings.svelte';
   import { appState } from './lib/store.svelte.js';
+
+  $effect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', appState.theme);
+    }
+  });
 </script>
 
 <div class="min-h-screen bg-base-300 flex flex-col font-sans transition-all duration-300">
@@ -17,6 +24,8 @@
       <AlertsEngine />
     {:else if appState.currentView === 'crate'}
       <CrateCatalog />
+    {:else if appState.currentView === 'checklist'}
+      <ChecklistPanel />
     {:else if appState.currentView === 'stats'}
       <StatsPanel />
     {:else if appState.currentView === 'feed'}

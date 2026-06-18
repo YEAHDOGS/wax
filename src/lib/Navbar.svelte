@@ -9,12 +9,14 @@
     MessageSquare, 
     Trophy, 
     Menu, 
-    Music
+    Music,
+    CheckSquare
   } from '@lucide/svelte';
 
   const menuItems = [
     { id: 'dashboard', label: 'Engine Alerts', icon: Disc },
     { id: 'crate', label: 'My Crate', icon: Grid },
+    { id: 'checklist', label: 'Checklists', icon: CheckSquare },
     { id: 'stats', label: 'Crate Stats', icon: BarChart3 },
     { id: 'feed', label: 'Social Feed', icon: MessageSquare },
     { id: 'achievements', label: 'Badges', icon: Trophy },
@@ -62,7 +64,8 @@
         {@const Icon = item.icon}
         <li>
           <button 
-            class="px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 {appState.currentView === item.id ? 'bg-primary text-primary-content neon-glow-primary' : 'hover:bg-base-300'}"
+            class="nav-btn"
+            class:active={appState.currentView === item.id}
             onclick={() => actions.setView(item.id)}
           >
             <Icon class="h-4 w-4" />
@@ -158,3 +161,16 @@
     </div>
   </div>
 </div>
+
+<style lang="scss">
+  @reference "../app.css";
+
+  .nav-btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 hover:bg-base-300 cursor-pointer;
+
+    &.active {
+      @apply bg-primary text-primary-content;
+      box-shadow: 0 0 15px var(--color-primary-glow, rgba(168, 85, 247, 0.4));
+    }
+  }
+</style>

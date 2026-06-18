@@ -22,6 +22,8 @@
   // API credentials mock values
   let twilioSid = $state('AC7a32b0f4438...');
   let resendApiKey = $state('re_Lz89A3...');
+  let discogsConsumerKey = $state('discogs_consumer_key_6b1a...');
+  let discogsConsumerSecret = $state('discogs_consumer_secret_f9a8...');
 
   function handleAddArtist() {
     if (newArtist.trim()) {
@@ -36,6 +38,18 @@
       newKeyword = '';
     }
   }
+
+  const themes = [
+    { id: 'night', name: 'Night Drop', desc: 'Deep oceanic indigo dark mode (default)' },
+    { id: 'dracula', name: 'Goth Dracula', desc: 'Vampire slate dark mode with pink accents' },
+    { id: 'synthwave', name: 'Synthwave', desc: '80s arcade neon retro glowing theme' },
+    { id: 'cyberpunk', name: 'Cyberpunk', desc: 'High-contrast cyber yellow and teal' },
+    { id: 'retro', name: 'Vintage Vinyl', desc: 'Warm cream, peach, and analog brown' },
+    { id: 'forest', name: 'Forest Crate', desc: 'Earthy forest greens and warm wood tones' },
+    { id: 'cupcake', name: 'Pastel Cupcake', desc: 'Sweet, bright pastel cream colors' },
+    { id: 'luxury', name: 'Luxury Crate', desc: 'Sophisticated black and gold premium finish' },
+    { id: 'light', name: 'Studio Light', desc: 'Clean, high-visibility classic light mode' }
+  ];
 </script>
 
 <div class="space-y-6">
@@ -125,7 +139,43 @@
           {#if appState.appleMusicConnected}
             <div class="text-[11px] text-neutral-content bg-base-200/50 p-2 rounded-lg flex items-center gap-1.5">
               <Check class="h-3 w-3 text-error" />
-              <span>Recently listened artists (Radiohead, Gorillaz, Lana Del Rey, Tyler, The Creator, Mac Miller) synced to alerts.</span>
+              <span>Recently listened artists (Radiohead, Gorillaz, Tame Impala, Daft Punk, Lana Del Rey, Tyler, The Creator, Mac Miller) synced to alerts.</span>
+            </div>
+          {/if}
+        </div>
+
+        <!-- Discogs Collection Integration -->
+        <div class="p-4 rounded-xl border border-base-300 bg-base-300/40 space-y-3 mt-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="w-8 h-8 rounded-full bg-neutral flex items-center justify-center text-white text-lg font-bold font-sans">D</span>
+              <div>
+                <h3 class="font-bold text-sm leading-tight">Discogs Collection Integration</h3>
+                <span class="text-[10px] text-neutral-content font-semibold flex items-center gap-1">
+                  {#if appState.discogsConnected}
+                    <span class="w-1.5 h-1.5 rounded-full bg-success animate-ping"></span>
+                    Connected: {appState.discogsUsername}
+                  {:else}
+                    <span class="text-neutral-content">Not Connected</span>
+                  {/if}
+                </span>
+              </div>
+            </div>
+            
+            {#if appState.discogsConnected}
+              <button onclick={() => actions.disconnectDiscogs()} class="btn btn-xs btn-outline btn-error">
+                Disconnect
+              </button>
+            {:else}
+              <button onclick={() => actions.startDiscogsLogin()} class="btn btn-xs btn-neutral text-white">
+                Sync Discogs Collection
+              </button>
+            {/if}
+          </div>
+          {#if appState.discogsConnected}
+            <div class="text-[11px] text-neutral-content bg-base-200/50 p-2 rounded-lg flex items-center gap-1.5">
+              <Check class="h-3 w-3 text-success" />
+              <span>Successfully synced 6 custom releases and rare pressing variants directly to your virtual crate.</span>
             </div>
           {/if}
         </div>
@@ -203,6 +253,45 @@
               </div>
             {/each}
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Global Theme & Style Selection Section -->
+    <div class="card bg-base-200 border border-base-300 shadow-xl lg:col-span-2">
+      <div class="card-body">
+        <h2 class="card-title text-xl border-b border-base-300 pb-2 flex items-center gap-2">
+          <span class="w-5 h-5 rounded-full bg-primary animate-pulse"></span>
+          App Theme & Visual Styles
+        </h2>
+        <p class="text-xs text-neutral-content mb-4">
+          Select your preferred colorway theme for WaxOnWax. Container elements, components, and badges will instantly adopt the active palette.
+        </p>
+        
+        <div class="theme-swatch-grid">
+          {#each themes as t}
+            <button 
+              onclick={() => actions.setTheme(t.id)} 
+              class="theme-card {appState.theme === t.id ? 'active' : ''}"
+              data-theme={t.id}
+            >
+              <div class="theme-header">
+                <span class="theme-name">{t.name}</span>
+                {#if appState.theme === t.id}
+                  <span class="badge badge-primary badge-xs font-semibold">Active</span>
+                {/if}
+              </div>
+              <p class="theme-desc">{t.desc}</p>
+              
+              <!-- Live Color Indicator Palette -->
+              <div class="theme-colors">
+                <span class="dot bg-primary" title="Primary color"></span>
+                <span class="dot bg-secondary" title="Secondary color"></span>
+                <span class="dot bg-accent" title="Accent color"></span>
+                <span class="dot bg-neutral" title="Neutral color"></span>
+              </div>
+            </button>
+          {/each}
         </div>
       </div>
     </div>
@@ -297,7 +386,7 @@ Devvit.addTrigger({
           API credentials & Routing Recipients
         </h2>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           <!-- Twilio Configuration -->
           <div class="space-y-4">
             <h3 class="font-bold text-sm text-secondary flex items-center gap-1.5">
@@ -361,6 +450,38 @@ Devvit.addTrigger({
               />
             </div>
           </div>
+
+          <!-- Discogs Configuration -->
+          <div class="space-y-4">
+            <h3 class="font-bold text-sm text-neutral-content flex items-center gap-1.5">
+              <Music class="h-4 w-4 text-purple-400" />
+              Discogs OAuth settings
+            </h3>
+            
+            <div class="form-control w-full">
+              <label class="label" for="discogs-key-input">
+                <span class="label-text">Application Consumer Key</span>
+              </label>
+              <input 
+                id="discogs-key-input"
+                type="text" 
+                class="input input-bordered w-full input-sm" 
+                bind:value={discogsConsumerKey}
+              />
+            </div>
+
+            <div class="form-control w-full">
+              <label class="label" for="discogs-secret-input">
+                <span class="label-text">Application Consumer Secret</span>
+              </label>
+              <input 
+                id="discogs-secret-input"
+                type="password" 
+                class="input input-bordered w-full input-sm" 
+                bind:value={discogsConsumerSecret}
+              />
+            </div>
+          </div>
         </div>
 
         <div class="card-actions justify-end mt-4">
@@ -370,3 +491,49 @@ Devvit.addTrigger({
     </div>
   </div>
 </div>
+
+<style lang="scss">
+  @reference "../app.css";
+
+  .theme-swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 1rem;
+    
+    @media (min-width: 640px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    @media (min-width: 1024px) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .theme-card {
+    @apply p-4 rounded-xl border-2 text-left transition-all duration-300 bg-base-200 border-base-300 cursor-pointer flex flex-col justify-between h-36 hover:scale-[1.02];
+    
+    &.active {
+      @apply border-primary bg-base-100;
+      box-shadow: 0 0 15px var(--color-primary-glow, rgba(168, 85, 247, 0.25));
+    }
+
+    .theme-header {
+      @apply flex justify-between items-center;
+      
+      .theme-name {
+        @apply font-bold text-xs uppercase text-base-content;
+      }
+    }
+
+    .theme-desc {
+      @apply text-[11px] text-neutral-content leading-tight my-1.5;
+    }
+
+    .theme-colors {
+      @apply flex gap-1.5 mt-auto pt-2 border-t border-base-300/40;
+      
+      .dot {
+        @apply w-4 h-4 rounded-full border border-black/10;
+      }
+    }
+  }
+</style>
