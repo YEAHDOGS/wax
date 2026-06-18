@@ -19,7 +19,9 @@
   "dependencies": {
     "@lucide/svelte": "^1.21.0",
     "daisyui": "^5.5.23",
-    "dotenv": "^17.4.2",
-    "snoowrap": "^1.15.2"
+    "dotenv": "^17.4.2"
+  },
+  "allowScripts": {
+    "@parcel/watcher@2.5.6": true
   }
 }
