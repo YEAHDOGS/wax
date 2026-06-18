@@ -1,0 +1,79 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+/* Custom theme overrides and utilities */
+html {
+  scrollbar-gutter: stable;
+}
+
+:root {
+  --sans: 'Outfit', system-ui, -apple-system, sans-serif;
+  --heading: 'Outfit', system-ui, -apple-system, sans-serif;
+  font-family: var(--sans);
+}
+
+body {
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* Vinyl Spin Animation */
+@keyframes spin-vinyl {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-vinyl 15s linear infinite;
+}
+
+.animate-spin-slow-paused {
+  animation: spin-vinyl 15s linear infinite;
+  animation-play-state: paused;
+}
+
+/* Custom visual utilities */
+.glass-panel {
+  background: rgba(23, 23, 37, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-light {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.neon-glow-primary {
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+}
+
+.neon-glow-accent {
+  box-shadow: 0 0 15px rgba(236, 72, 153, 0.4);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.3);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.5);
+}
