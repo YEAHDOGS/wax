@@ -1,0 +1,61 @@
+/**
+ * Wax tokens as custom properties. Mirrors ./tokens.ts — keep the two in step.
+ */
+
+:root {
+  /* Inks */
+  --ink: #14110e;
+  --stock: #e4e2da;
+  --vermilion: #f03c0b;
+  /* A heavier lay of the action ink, for small text on board stock. */
+  --vermilion-deep: #a82404;
+  --cyan: #0089a8;
+  --chartreuse: #c8d420;
+  --ultramarine: #1b2e8c;
+
+  /* Secondary text, tinted from its own surface. Never gray. */
+  --on-dark: rgba(228, 226, 218, 0.7);
+  --on-light: rgba(20, 17, 14, 0.66);
+
+  /* Type */
+  --display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --data: 'Courier Prime', 'Courier New', monospace;
+
+  /* 6px base */
+  --hair: 2px;
+  --xs: 6px;
+  --sm: 12px;
+  --md: 24px;
+  /* Separation scales with viewport height so a panel keeps its rhythm on a
+     short screen instead of overflowing it. */
+  --lg: clamp(24px, 5dvh, 48px);
+  --xl: clamp(40px, 10dvh, 96px);
+  /* Panel padding answers to viewport height, not width: a panel is exactly
+     one screen tall, so a short screen must give its padding back. */
+  --band: clamp(24px, 4.2dvh, 64px);
+  --gutter: clamp(20px, 5vw, 72px);
+
+  /* Rules — hairline and structural. The Square Corner Rule: no radius token. */
+  --rule: 1.5px;
+  --rule-structural: 3px;
+
+  /* The 12-inch square. Bounded by height as well as width, so the sleeve
+     never pushes its panel past one screen. */
+  --sleeve: min(88vw, 54dvh, 560px);
+
+  /* The nav is a fixed overlay, so panels are a full screen tall. */
+  --nav-h: 52px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --flip: 720ms;
+  --state: 140ms;
+  --press: 1100ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --flip: 1ms;
+    --press: 1ms;
+  }
+}

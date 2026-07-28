@@ -1,0 +1,96 @@
+/* Reset and the base register. Ink on board, square corners, no shadows.
+ *
+ * The full layer order is declared here, before anything else is imported.
+ * Unlayered rules outrank every layer, so the reset lives in one — otherwise
+ * `* { padding: 0 }` silently beats every component rule in wax.css.
+ */
+
+@layer reset, base, fields, type, marks, nav, sleeve, run, controls, footer, motion;
+
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    /* The Square Corner Rule. */
+    border-radius: 0;
+  }
+
+  img,
+  svg {
+    display: block;
+    max-width: 100%;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  input {
+    font: inherit;
+    color: inherit;
+  }
+
+  ul,
+  ol {
+    list-style: none;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+    /* No smooth scrolling: it slows the snap animation to a crawl and makes
+       every anchor jump feel like waiting. The snap should land hard. */
+    scroll-behavior: auto;
+  }
+
+  body {
+    background: var(--ink);
+    color: var(--stock);
+    font-family: var(--display);
+    font-size: clamp(1rem, 1.15vw, 1.125rem);
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  ::selection {
+    background: var(--vermilion);
+    color: var(--ink);
+  }
+
+  :focus-visible {
+    outline: var(--rule-structural) solid var(--vermilion);
+    outline-offset: 3px;
+  }
+
+  /* On a vermilion field a vermilion ring is invisible. */
+  .f-vermilion :focus-visible {
+    outline-color: var(--ink);
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
