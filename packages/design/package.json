@@ -1,0 +1,12 @@
+{
+  "name": "@wax/design",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Wax design tokens — the single source of truth shared by the web surface and the Expo app.",
+  "type": "module",
+  "main": "./tokens.ts",
+  "exports": {
+    ".": "./tokens.ts",
+    "./tokens.css": "./tokens.css"
+  }
+}

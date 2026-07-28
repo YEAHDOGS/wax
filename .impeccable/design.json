@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-27T00:00:00.000Z",
+  "title": "Design System: Wax",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink Black",
+        "canonical": "oklch(0.18 0.008 60)",
+        "tonalRamp": ["oklch(0.10 0.006 60)", "oklch(0.18 0.008 60)", "oklch(0.28 0.010 60)", "oklch(0.40 0.010 60)", "oklch(0.52 0.010 60)", "oklch(0.66 0.008 60)", "oklch(0.80 0.006 60)", "oklch(0.93 0.004 60)"]
+      },
+      "stock": {
+        "role": "neutral",
+        "displayName": "Board Stock",
+        "canonical": "oklch(0.91 0.008 95)",
+        "tonalRamp": ["oklch(0.20 0.006 95)", "oklch(0.32 0.006 95)", "oklch(0.44 0.007 95)", "oklch(0.56 0.008 95)", "oklch(0.68 0.008 95)", "oklch(0.79 0.008 95)", "oklch(0.91 0.008 95)", "oklch(0.97 0.005 95)"]
+      },
+      "vermilion": {
+        "role": "primary",
+        "displayName": "Vermilion",
+        "canonical": "oklch(0.62 0.221 34)",
+        "tonalRamp": ["oklch(0.18 0.075 34)", "oklch(0.28 0.115 34)", "oklch(0.38 0.155 34)", "oklch(0.50 0.195 34)", "oklch(0.62 0.221 34)", "oklch(0.74 0.170 34)", "oklch(0.86 0.100 34)", "oklch(0.95 0.040 34)"]
+      },
+      "vermilion-deep": {
+        "role": "primary",
+        "displayName": "Deep Vermilion",
+        "canonical": "oklch(0.46 0.176 33)",
+        "tonalRamp": ["oklch(0.16 0.065 33)", "oklch(0.24 0.098 33)", "oklch(0.32 0.130 33)", "oklch(0.46 0.176 33)", "oklch(0.58 0.190 33)", "oklch(0.72 0.150 33)", "oklch(0.85 0.090 33)", "oklch(0.95 0.035 33)"]
+      },
+      "cyan": {
+        "role": "secondary",
+        "displayName": "Process Cyan",
+        "canonical": "oklch(0.58 0.101 221)",
+        "tonalRamp": ["oklch(0.18 0.040 221)", "oklch(0.28 0.058 221)", "oklch(0.38 0.076 221)", "oklch(0.48 0.090 221)", "oklch(0.58 0.101 221)", "oklch(0.72 0.085 221)", "oklch(0.85 0.055 221)", "oklch(0.95 0.022 221)"]
+      },
+      "chartreuse": {
+        "role": "secondary",
+        "displayName": "Acid Chartreuse",
+        "canonical": "oklch(0.83 0.180 116)",
+        "tonalRamp": ["oklch(0.22 0.070 116)", "oklch(0.34 0.100 116)", "oklch(0.46 0.128 116)", "oklch(0.58 0.150 116)", "oklch(0.70 0.168 116)", "oklch(0.83 0.180 116)", "oklch(0.91 0.120 116)", "oklch(0.97 0.050 116)"]
+      },
+      "ultramarine": {
+        "role": "tertiary",
+        "displayName": "Ultramarine",
+        "canonical": "oklch(0.35 0.158 268)",
+        "tonalRamp": ["oklch(0.14 0.070 268)", "oklch(0.22 0.110 268)", "oklch(0.35 0.158 268)", "oklch(0.46 0.170 268)", "oklch(0.58 0.155 268)", "oklch(0.72 0.115 268)", "oklch(0.86 0.070 268)", "oklch(0.95 0.028 268)"]
+      }
+    },
+    "typographyMeta": {
+      "sleeve-title": { "displayName": "Sleeve Title", "purpose": "The release name on a sleeve face. The only role permitted above 6rem, and only inside a square module that clips it." },
+      "display": { "displayName": "Display", "purpose": "Section openings and the value proposition. Always fully legible, never clipped." },
+      "headline": { "displayName": "Headline", "purpose": "Subsection headings and pricing tiers." },
+      "body": { "displayName": "Body", "purpose": "Running prose, held to a 62–70ch measure." },
+      "label": { "displayName": "Label", "purpose": "Field names, corner marks and button text. A systemic mark, never a decorative eyebrow." },
+      "data": { "displayName": "Data", "purpose": "Catalog numbers, timestamps, prices, quantities and credit blocks. Measurement only." }
+    },
+    "shadows": [
+      { "name": "flip-shadow", "value": "0 24px 48px -12px rgba(20,17,14,0.45)", "purpose": "The system's only shadow. A sleeve mid-rotation is a physical object moving in space. Never at rest." }
+    ],
+    "motion": [
+      { "name": "ease", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Exponential ease-out. Everything decelerates into place." },
+      { "name": "flip", "value": "720ms", "purpose": "A sleeve turning over in the hand — the system's signature motion." },
+      { "name": "state", "value": "140ms", "purpose": "Hover and focus inversions on buttons, links and field rules." },
+      { "name": "press", "value": "1100ms", "purpose": "A new release being cut onto the hero sleeve." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "900px" },
+      { "name": "lg", "value": "1200px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The action ink, square, inverting on hover. One per region.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Track your first 3 artists — free</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; padding: 20px 36px; font-family: var(--display); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; border: none; border-radius: 0; cursor: pointer; transition: background-color 140ms cubic-bezier(0.16,1,0.3,1), color 140ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-primary { background: var(--vermilion); color: var(--ink); } .ds-btn-primary:hover { background: var(--ink); color: var(--vermilion); } .ds-btn-primary:focus-visible { outline: 3px solid var(--vermilion); outline-offset: 3px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "A 3px ruled box that fills solid on hover. Secondary action.",
+      "html": "<button class=\"ds-btn ds-btn-ghost\">How the watcher works</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; padding: 18px 34px; font-family: var(--display); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; background: transparent; color: var(--stock); box-shadow: inset 0 0 0 3px currentColor; border: none; border-radius: 0; cursor: pointer; transition: background-color 140ms cubic-bezier(0.16,1,0.3,1), color 140ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-ghost:hover { background: var(--stock); color: var(--ink); }"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "A rule to write on, not a box. The label goes vermilion with the rule on focus.",
+      "html": "<span class=\"ds-field\"><label class=\"ds-field-label\" for=\"ds-a\">First artist to watch</label><input class=\"ds-field-input\" id=\"ds-a\" placeholder=\"BT\" /></span>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 6px; min-width: 260px; color: var(--stock); } .ds-field-label { font-family: var(--display); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; transition: color 140ms cubic-bezier(0.16,1,0.3,1); } .ds-field-input { background: transparent; border: none; border-bottom: 3px solid currentColor; border-radius: 0; padding: 12px 0; font-family: var(--display); font-size: 1.375rem; font-weight: 700; letter-spacing: -0.02em; color: inherit; outline: none; transition: border-color 140ms cubic-bezier(0.16,1,0.3,1); } .ds-field-input::placeholder { color: rgba(228,226,218,0.7); font-weight: 400; } .ds-field-input:focus { border-bottom-color: var(--vermilion); border-bottom-width: 4px; } .ds-field:focus-within .ds-field-label { color: var(--vermilion); }"
+    },
+    {
+      "name": "Navigation",
+      "kind": "nav",
+      "refersTo": "nav",
+      "description": "A hairline-ruled band. No blur, no shrink-on-scroll, no pill.",
+      "html": "<nav class=\"ds-nav\"><span class=\"ds-lockup\"><span class=\"ds-lockup-word\">Wax</span><span class=\"ds-lockup-meta\"><span>A DOGS Record</span><span>High Fidelity Alerts</span></span></span><span class=\"ds-nav-links\"><a class=\"ds-nav-link\" href=\"#\">How it works</a><a class=\"ds-nav-link ds-nav-link-mark\" href=\"#\">Start free →</a></span></nav>",
+      "css": ".ds-nav { display: flex; align-items: center; gap: 24px; padding: 12px 24px; background: var(--ink); color: var(--stock); border-bottom: 1.5px solid rgba(228,226,218,0.7); font-family: var(--display); } .ds-nav-links { display: flex; gap: 24px; margin-left: auto; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; } .ds-nav-link { color: inherit; text-decoration: none; padding: 6px 0; border-bottom: 3px solid transparent; transition: border-color 140ms cubic-bezier(0.16,1,0.3,1); } .ds-nav-link:hover { border-bottom-color: var(--vermilion); } .ds-nav-link-mark { color: var(--vermilion); } .ds-lockup { display: inline-flex; border: 3px solid currentColor; } .ds-lockup-word { padding: 7px 10px 5px; font-size: 1.0625rem; font-weight: 900; font-stretch: 118%; letter-spacing: 0.02em; line-height: 1; text-transform: uppercase; display: flex; align-items: center; } .ds-lockup-meta { border-left: 3px solid currentColor; padding: 4px 8px 3px; display: flex; flex-direction: column; justify-content: center; gap: 2px; font-family: var(--data); font-size: 0.5rem; line-height: 1.1; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }"
+    },
+    {
+      "name": "Sleeve",
+      "kind": "custom",
+      "refersTo": "sleeve",
+      "description": "The signature object. A square ink field with the artist running up the left edge, the title at architectural scale, and four corner marks. Front is the hook, back is the data.",
+      "html": "<div class=\"ds-sleeve\"><span class=\"ds-sleeve-block\"></span><span class=\"ds-sleeve-cat\">WAX 4001</span><span class=\"ds-sleeve-stereo\">Stereo</span><span class=\"ds-sleeve-artist\">Nadja Solveig</span><span class=\"ds-sleeve-title\">Ostinato Weather</span><span class=\"ds-sleeve-variant\">Clear with black smoke</span></div>",
+      "css": ".ds-sleeve { position: relative; width: 320px; height: 320px; overflow: hidden; background: var(--cyan); color: var(--ink); font-family: var(--display); border-radius: 0; } .ds-sleeve::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(circle at center, var(--ink) 1.05px, transparent 1.15px); background-size: 5px 5px; opacity: 0.14; } .ds-sleeve-block { position: absolute; top: 0; right: 0; width: 46%; height: 34%; background: var(--ink); opacity: 0.14; } .ds-sleeve-cat, .ds-sleeve-stereo { position: absolute; top: 16px; font-family: var(--data); font-size: 0.6875rem; letter-spacing: 0.06em; text-transform: uppercase; z-index: 3; } .ds-sleeve-cat { left: 16px; } .ds-sleeve-stereo { right: 16px; } .ds-sleeve-artist { position: absolute; left: 12px; bottom: 54px; transform-origin: left bottom; transform: rotate(-90deg); white-space: nowrap; font-size: 1.5rem; font-weight: 900; font-stretch: 62%; line-height: 1; text-transform: uppercase; z-index: 2; } .ds-sleeve-title { position: absolute; left: 52px; right: 16px; bottom: 44px; font-size: 2rem; font-weight: 900; font-stretch: 112%; line-height: 0.84; letter-spacing: -0.04em; text-transform: uppercase; z-index: 2; } .ds-sleeve-variant { position: absolute; left: 52px; right: 16px; bottom: 16px; font-family: var(--data); font-size: 0.6875rem; letter-spacing: 0.04em; text-transform: uppercase; z-index: 2; }"
+    },
+    {
+      "name": "Sold Out Overprint",
+      "kind": "custom",
+      "refersTo": "sleeve",
+      "description": "A second pass on press, laid over a finished sleeve at multiply. Needs board stock underneath to read.",
+      "html": "<div class=\"ds-overprint-holder\"><span class=\"ds-overprint\">Sold Out</span></div>",
+      "css": ".ds-overprint-holder { position: relative; width: 320px; height: 320px; background: var(--stock); display: grid; place-items: center; } .ds-overprint { border: 6px solid var(--vermilion); color: var(--vermilion); padding: 10px 22px 7px; transform: rotate(-11deg); font-family: var(--display); font-size: 2rem; font-weight: 900; font-stretch: 112%; letter-spacing: 0.02em; line-height: 1; text-transform: uppercase; mix-blend-mode: multiply; opacity: 0.92; }"
+    },
+    {
+      "name": "Section Opener",
+      "kind": "custom",
+      "refersTo": "catalog-mark",
+      "description": "The catalog number is the section's real identifier, not a decorative 01/02/03.",
+      "html": "<div class=\"ds-opener\"><span class=\"ds-opener-cat\">WAX 4003</span><span class=\"ds-opener-name\">Session credits · how it works</span></div>",
+      "css": ".ds-opener { display: flex; align-items: baseline; gap: 24px; padding-bottom: 12px; border-bottom: 1.5px solid currentColor; color: var(--ink); font-family: var(--display); } .ds-opener-cat { font-family: var(--data); font-size: 0.8125rem; letter-spacing: 0.08em; white-space: nowrap; } .ds-opener-name { font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; margin-left: auto; color: rgba(20,17,14,0.66); }"
+    },
+    {
+      "name": "Crate Spine",
+      "kind": "card",
+      "refersTo": "sleeve",
+      "description": "A record filed on its edge. Lifts out of the crate on hover.",
+      "html": "<span class=\"ds-spine\"><span class=\"ds-spine-cat\">HAL-072</span><span class=\"ds-spine-text\">Nadja Solveig — Ostinato Weather</span></span>",
+      "css": ".ds-spine { display: flex; align-items: flex-end; justify-content: center; position: relative; width: 58px; height: 300px; background: var(--cyan); color: var(--ink); border: 1.5px solid rgba(228,226,218,0.18); border-radius: 0; padding-bottom: 12px; cursor: pointer; font-family: var(--display); transition: transform 140ms cubic-bezier(0.16,1,0.3,1); } .ds-spine:hover { transform: translateY(-26px); } .ds-spine-text { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; font-size: 0.75rem; font-weight: 700; font-stretch: 84%; letter-spacing: 0.04em; text-transform: uppercase; padding-bottom: 24px; } .ds-spine-cat { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); writing-mode: vertical-rl; font-family: var(--data); font-size: 0.5625rem; letter-spacing: 0.08em; opacity: 0.72; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Sleeve Program",
+    "overview": "Wax is built as a record label, not as an app with a record theme. The system descends from Reid Miles' Blue Note program (1956–67), whose real invention was not jazz nostalgia but a doctrine: a record sleeve is an information poster. The facts carry the composition at architectural scale on the front; the back cover sets dense session data as carefully as the front sets the title. Wax is an information product about records, so it inherits that doctrine literally. Every drop Wax catches is a release in its own catalog, cut its own sleeve, and stamped with its own number in the WAX 4000 series.\n\nThe system is drenched, not accented. Saturated printing inks own whole regions of a surface rather than appearing as small accents over a neutral ground. Photography is duotone: one ink plus black, never full colour. Type is the primary image; when a composition needs a picture, heavy gothic capitals set at sleeve scale are the picture. Corners are square everywhere, without exception, because a printed sleeve has square corners.\n\nThe confirmed anti-reference is the wax1 prototype: dark glassmorphism, purple-to-pink gradient text, neon halo shadows, and Outfit. The second, subtler failure mode is soft mid-century pastiche — muted mustard and teal, faux-vintage distressing, jazz-bar nostalgia. Wax's inks run acid and contemporary; the data density is present-tense.",
+    "keyCharacteristics": [
+      "Saturated ink fields at page scale, one ink per region",
+      "Type as architecture; the headline is the image",
+      "Square corners and hard rules, universally",
+      "Duotone photography only, never full colour",
+      "Typewritten data blocks carrying real information density",
+      "A catalog number on every object in the system"
+    ],
+    "rules": [
+      { "name": "The One Ink Rule", "body": "A region carries exactly one ink plus black and stock. Two saturated inks never share a field; they meet at a hard edge between fields.", "section": "colors" },
+      { "name": "The Ink-Text Rule", "body": "Vermilion, cyan and chartreuse fields take Ink Black text (4.84:1, 4.65:1, 11.7:1). Ultramarine and Ink Black fields take Board Stock text (8.85:1 and 14.6:1). No other pairing ships; there is no combination in this system that requires gray text to work.", "section": "colors" },
+      { "name": "The No-Headroom Rule", "body": "On vermilion and cyan there is no room to tint: full Ink Black is already only 4.84:1 and 4.65:1, and any lift drops secondary text below 4.5:1. On those two fields secondary text stays full ink and separates by weight and size instead.", "section": "colors" },
+      { "name": "The Duotone Rule", "body": "Photographs are printed in black plus exactly one ink. A full-colour photograph has not been art-directed yet.", "section": "colors" },
+      { "name": "The Legible Hook Rule", "body": "Reid Miles clipped titles because the buyer already held the record. A visitor does not. The value proposition, the primary action and every navigational word are set fully within their box. Only a release title may run off an edge.", "section": "typography" },
+      { "name": "The Measured Mono Rule", "body": "Courier Prime appears only where the content is a measurement, an identifier or a date. Prose never sets in mono.", "section": "typography" },
+      { "name": "The Flat Press Rule", "body": "No shadow at rest, anywhere. If an element needs separation it gets a hard rule or a different ink field, not a shadow. A zero-offset coloured halo is forbidden outright.", "section": "elevation" },
+      { "name": "The Square Corner Rule", "body": "Radius is 0 on every element in this system, with no exception. A printed sleeve has square corners, and so does everything in Wax.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do let one ink own an entire full-bleed region. Colour commits at page scale in this system.",
+      "Do set every catalog number, timestamp, price and pressing quantity in Courier Prime.",
+      "Do keep every corner square (0 radius), on every element without exception.",
+      "Do print photographs as duotone — black plus exactly one ink.",
+      "Do give a data-dense band a quiet ink field after it; the run's rhythm is deliberately uneven.",
+      "Do pair light inks with Ink Black text and dark inks with Board Stock text, per The Ink-Text Rule.",
+      "Do hold running prose to a 62–70ch measure."
+    ],
+    "donts": [
+      "Don't use gradient text. Emphasis comes from weight, width and scale.",
+      "Don't use glassmorphism, backdrop blur as decoration, or neon halo shadows. These are the wax1 prototype's signature and this system's named anti-reference.",
+      "Don't ship a rounded corner, a soft drop shadow at rest, or a coloured border-left accent.",
+      "Don't render a photograph in full colour.",
+      "Don't set body prose in Courier Prime, or use it to signal 'technical'.",
+      "Don't soften the palette toward muted mustard, dusty teal or faux-vintage distressing. The inks run acid; nostalgia is the failure mode.",
+      "Don't let the sleeve module become a rectangle at any breakpoint.",
+      "Don't clip any text a first-time visitor must read — only a release title may run off an edge."
+    ]
+  }
+}
