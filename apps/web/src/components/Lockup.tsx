@@ -8,8 +8,8 @@ export function Lockup({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
     <span className={`lockup${size === 'lg' ? ' lockup--lg' : ''}`}>
       <span className="lockup__word">Wax</span>
       <span className="lockup__meta" aria-hidden="true">
-        <span>A DOGS Record</span>
-        <span>High Fidelity Alerts</span>
+        <span>by DOGS</span>
+        {/* <span>DOGS</span> */}
       </span>
     </span>
   );

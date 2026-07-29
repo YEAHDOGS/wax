@@ -1,0 +1,12 @@
+{
+  "name": "@wax/core",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Wax domain core — schema, seed data, in-memory store, and the request handlers the serverless functions wrap.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./schema.sql": "./src/schema.sql"
+  }
+}
