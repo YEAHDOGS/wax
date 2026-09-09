@@ -142,6 +142,7 @@ function buildStore(data) {
     wantlistItems: collection(data.wantlistItems),
     pricePoints: collection(data.pricePoints),
     activity: collection(data.activity),
+    engineStates: collection(data.engineStates ?? []),
     sessions: collection(sessionRows),
 
     /**

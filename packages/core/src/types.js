@@ -365,6 +365,24 @@
  * @property {Timestamp}  created_at
  */
 
+// ------------------------------------------------- alert engine state --
+
+/**
+ * One row of the alert engine's durable memory: the last-seen snapshot
+ * `runEngine` recorded for a user+release pair (src/alert-persistence.js).
+ * Keyed by the release side of `prevStateKey` — the Discogs release id, or
+ * the normalized "artist::title" fallback. The queue's seen-set needs no
+ * table: it rehydrates from the `alerts` rows.
+ *
+ * @typedef {object} EngineState
+ * @property {string}    user_id
+ * @property {string}    state_key
+ * @property {?number}   state.price_cents  Last observed price.
+ * @property {?boolean}  state.in_stock     Last observed stock.
+ * @property {Timestamp} state.seen_at      When the engine last saw it.
+ * @property {Timestamp} updated_at
+ */
+
 // -------------------------------------------------------- crate and pricing
 
 /**
