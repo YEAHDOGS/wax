@@ -387,7 +387,7 @@ export async function dispatchAlert({ alert, channels = {}, fanout = [], nowMs =
         sentAt: new Date(nowMs).toISOString(),
       };
     }
-    receipts.push({ via: channel.name, ...receipt });
+    receipts.push({ ...receipt, via: channel.name, channel: delivery.channel });
 
     // Fan-out copies ride alongside: they observe, they never gate.
     for (const extra of fanout) {
@@ -401,7 +401,7 @@ export async function dispatchAlert({ alert, channels = {}, fanout = [], nowMs =
           message: delivery.message,
           nowMs,
         });
-        receipts.push({ via: mirror.name, ...copy });
+        receipts.push({ ...copy, via: mirror.name, channel: `fanout:${delivery.channel}` });
       } catch (err) {
         receipts.push({
           via: mirror.name,
