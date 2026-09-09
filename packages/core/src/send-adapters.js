@@ -140,6 +140,45 @@ export function createConsoleAdapter({ sink = [], name = 'console', kind = 'emai
 }
 
 /**
+ * Dry-run adapter — the DEFAULT adapter for dev and staging (this is what
+ * `createAlertDispatcher` reaches for when no adapters are registered).
+ * Prints exactly what would be sent and returns an `{ ok: true }` receipt
+ * marked `dryRun: true`, so a dry-run delivery is never mistaken for a
+ * real one. Nothing leaves the machine: the only I/O is the `out` writer.
+ *
+ * @param {object} [input]
+ * @param {{ write: Function }} [input.out] Where the "would send" lines go.
+ *   Defaults to `process.stdout`.
+ * @param {string} [input.name] Channel name. Defaults to `'dry-run'`.
+ * @param {'email'|'sms'} [input.kind] Declared kind. Defaults to `'email'`.
+ */
+export function createDryRunAdapter({ out = process.stdout, name = 'dry-run', kind = 'email' } = {}) {
+  if (out == null || typeof out.write !== 'function') {
+    throw new TypeError(`dry-run adapter needs a writable out, got ${out == null ? out : typeof out}`);
+  }
+  const adapter = {
+    name,
+    kind,
+    dryRun: true,
+    wired: false,
+    async send(envelope) {
+      const sentAt = new Date(envelope?.nowMs ?? Date.now()).toISOString();
+      const messageId = `dryrun_${randomUUID()}`;
+      const message = envelope?.message;
+      const text =
+        typeof message === 'string'
+          ? message
+          : message?.subject
+            ? `${message.subject} — ${message?.text ?? ''}`
+            : JSON.stringify(message ?? null);
+      out.write(`[dry-run:${name}] would send ${kind} to ${envelope?.to ?? '(no address)'}: ${text}\n`);
+      return { ok: true, channel: name, messageId, sentAt, dryRun: true };
+    },
+  };
+  return assertChannel(adapter, 'dry-run adapter');
+}
+
+/**
  * The seam. Given provider config, return the adapters the queue should
  * dispatch through — real ones when Brando's keys are present, disabled
  * stubs in every other case. There is no "sort of wired".
