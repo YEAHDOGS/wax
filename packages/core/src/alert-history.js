@@ -59,43 +59,46 @@ const when = (iso) => new Date(iso).toISOString().slice(0, 16).replace('T', ' ')
  * @param {string} userId
  * @param {object} [opts]
  * @param {import('./types.js').AlertState|'all'} [opts.state] Filter, default all.
- * @returns {string} A complete HTML document.
+ * @returns {Promise<string>} A complete HTML document.
  */
-export function renderAlertHistory(store, userId, { state = 'all' } = {}) {
+export async function renderAlertHistory(store, userId, { state = 'all' } = {}) {
   const active = STATES.includes(state) ? state : 'all';
 
-  const rows = store.alerts
-    .filter((a) => a.user_id === userId && (active === 'all' || a.state === active))
+  const rows = (await store.alerts
+    .filter((a) => a.user_id === userId && (active === 'all' || a.state === active)))
     .sort((a, b) => Date.parse(b.detected_at) - Date.parse(a.detected_at));
 
-  const of = (s) => store.alerts.filter((a) => a.user_id === userId && a.state === s).length;
-  const all = store.alerts.filter((a) => a.user_id === userId).length;
-  const unread = store.alerts.filter((a) => a.user_id === userId && a.read_at === null).length;
+  const of = async (s) => (await store.alerts.filter((a) => a.user_id === userId && a.state === s)).length;
+  const all = (await store.alerts.filter((a) => a.user_id === userId)).length;
+  const unread = (await store.alerts.filter((a) => a.user_id === userId && a.read_at === null)).length;
 
+  const filterCounts = {};
+  for (const s of STATES) filterCounts[s] = await of(s);
   const filters = ['all', ...STATES]
     .map((s) => {
-      const count = s === 'all' ? all : of(s);
+      const count = s === 'all' ? all : filterCounts[s];
       const label = s === 'all' ? 'all' : s;
       const current = s === active ? ' current" aria-current="page' : '';
       return `<a class="filter${current}" href="?state=${esc(s)}">${esc(label)} (${count})</a>`;
     })
     .join('\n      ');
 
-  const items = rows
-    .map((a) => {
-      const release = store.releases.find((r) => r.id === a.release_id);
-      const artist = release
-        ? (store.artists.find((ar) => ar.id === release.artist_id) ?? {}).name ?? ''
-        : '';
-      const title = release ? release.title : a.release_id;
-      const kind = KIND_LABELS[a.kind] ?? a.kind;
-      const channels = (a.channels ?? []).join(' + ') || 'email';
-      const link = a.listing_url
-        ? isSafeUrl(a.listing_url)
-          ? `<a href="${esc(a.listing_url)}">open listing</a>`
-          : `<span class="url">${esc(a.listing_url)}</span>`
-        : '';
-      return `      <li data-id="${esc(a.id)}">
+  const items = (
+    await Promise.all(
+      rows.map(async (a) => {
+        const release = await store.releases.find((r) => r.id === a.release_id);
+        const artist = release
+          ? ((await store.artists.find((ar) => ar.id === release.artist_id)) ?? {}).name ?? ''
+          : '';
+        const title = release ? release.title : a.release_id;
+        const kind = KIND_LABELS[a.kind] ?? a.kind;
+        const channels = (a.channels ?? []).join(' + ') || 'email';
+        const link = a.listing_url
+          ? isSafeUrl(a.listing_url)
+            ? `<a href="${esc(a.listing_url)}">open listing</a>`
+            : `<span class="url">${esc(a.listing_url)}</span>`
+          : '';
+        return `      <li data-id="${esc(a.id)}">
         <span class="state">[${esc(a.state)}]</span>
         ${a.read_at === null ? '<span class="unread">unread</span>' : ''}
         <strong><a href="?id=${esc(a.id)}">${artist ? `${esc(artist)} — ` : ''}${esc(title)}</a></strong>
@@ -105,8 +108,9 @@ export function renderAlertHistory(store, userId, { state = 'all' } = {}) {
         <span class="channels">${esc(channels)}</span>
         ${link}
       </li>`;
-    })
-    .join('\n');
+      }),
+    )
+  ).join('\n');
 
   return `<!DOCTYPE html>
 <html lang="en">

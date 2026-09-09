@@ -102,10 +102,10 @@ export const MAX_CONFIRM_ATTEMPTS_PER_WINDOW = 10;
  * @param {number} nowMs
  * @returns {number} Attempts inside the window.
  */
-function recentAttempts(store, kind, key, windowMs, nowMs) {
+async function recentAttempts(store, kind, key, windowMs, nowMs) {
   const cutoff = nowMs - windowMs;
-  store.subscribeAttempts.remove((a) => a.kind === kind && a.key === key && Date.parse(a.at) <= cutoff);
-  return store.subscribeAttempts.filter((a) => a.kind === kind && a.key === key).length;
+  await store.subscribeAttempts.remove((a) => a.kind === kind && a.key === key && Date.parse(a.at) <= cutoff);
+  return (await store.subscribeAttempts.filter((a) => a.kind === kind && a.key === key)).length;
 }
 
 /**
@@ -113,8 +113,8 @@ function recentAttempts(store, kind, key, windowMs, nowMs) {
  * Throws a 429 `ApiError` — not a 400 — because the request is well
  * formed; it just arrived too often.
  */
-function checkThrottle({ store, kind, key, windowMs, max, nowMs, what }) {
-  const seen = recentAttempts(store, kind, key, windowMs, nowMs);
+async function checkThrottle({ store, kind, key, windowMs, max, nowMs, what }) {
+  const seen = await recentAttempts(store, kind, key, windowMs, nowMs);
   if (seen >= max) {
     throw new ApiError(
       429,
@@ -125,8 +125,8 @@ function checkThrottle({ store, kind, key, windowMs, max, nowMs, what }) {
 }
 
 /** Record a spent attempt (every recorded attempt was itself allowed). */
-function recordAttempt(store, kind, key, nowMs) {
-  store.subscribeAttempts.insert({
+async function recordAttempt(store, kind, key, nowMs) {
+  await store.subscribeAttempts.insert({
     id: newId('satt'),
     key,
     kind,
@@ -296,7 +296,7 @@ export async function subscribeAlertChannel(
   const filter = validateFilter(input.filter);
   const filterKey = JSON.stringify(filter ?? {});
 
-  const existing = store.subscriptions.find(
+  const existing = await store.subscriptions.find(
     (s) => s.channel === kind && s.recipient === recipient && s.filter_key === filterKey && s.state !== 'unsubscribed',
   );
   if (existing) return { subscription: publicSubscription(existing, { duplicate: true }), confirm_token: existing.confirm_token, delivered: existing.confirm_receipt?.ok === true };
@@ -304,7 +304,7 @@ export async function subscribeAlertChannel(
   // Throttle before any new send: each new subscribe spends one attempt
   // for the address. Idempotent duplicates above return before this, so
   // re-posting the same subscription never burns budget or re-sends.
-  checkThrottle({
+  await checkThrottle({
     store,
     kind: 'subscribe',
     key: `${kind}:${recipient}`,
@@ -313,9 +313,9 @@ export async function subscribeAlertChannel(
     nowMs: now,
     what: 'subscription attempts for this address',
   });
-  recordAttempt(store, 'subscribe', `${kind}:${recipient}`, now);
+  await recordAttempt(store, 'subscribe', `${kind}:${recipient}`, now);
 
-  const sub = store.subscriptions.insert({
+  const sub = await store.subscriptions.insert({
     id: newId('sub'),
     email,
     phone,
@@ -332,10 +332,10 @@ export async function subscribeAlertChannel(
   });
 
   const receipt = await sendConfirmation({ channel, recipient, sub, confirmBaseUrl, now });
-  store.subscriptions.update((s) => s.id === sub.id, { confirm_receipt: receipt });
+  await store.subscriptions.update((s) => s.id === sub.id, { confirm_receipt: receipt });
 
   return {
-    subscription: publicSubscription(store.subscriptions.find((s) => s.id === sub.id)),
+    subscription: publicSubscription(await store.subscriptions.find((s) => s.id === sub.id)),
     confirm_token: sub.confirm_token,
     delivered: receipt.ok === true,
   };
@@ -355,13 +355,13 @@ export async function subscribeAlertChannel(
  * @param {object} [deps]
  * @param {number} [deps.now]
  */
-export function confirmAlertSubscription(token, { store = defaultStore, now = Date.now() } = {}) {
+export async function confirmAlertSubscription(token, { store = defaultStore, now = Date.now() } = {}) {
   if (typeof token !== 'string' || !token) {
     throw new ApiError(404, 'bad_token', 'That confirmation link is invalid or already used.');
   }
-  const sub = store.subscriptions.find((s) => s.confirm_token === token);
+  const sub = await store.subscriptions.find((s) => s.confirm_token === token);
   if (!sub) {
-    checkThrottle({
+    await checkThrottle({
       store,
       kind: 'confirm',
       key: token,
@@ -370,14 +370,14 @@ export function confirmAlertSubscription(token, { store = defaultStore, now = Da
       nowMs: now,
       what: 'confirmation attempts with this token',
     });
-    recordAttempt(store, 'confirm', token, now);
+    await recordAttempt(store, 'confirm', token, now);
     throw new ApiError(404, 'bad_token', 'That confirmation link is invalid or already used.');
   }
   if (sub.state === 'active') return publicSubscription(sub);
   if (sub.state === 'unsubscribed') {
     throw new ApiError(410, 'gone', 'This subscription was cancelled. Subscribe again for a fresh link.');
   }
-  const updated = store.subscriptions.update((s) => s.id === sub.id, {
+  const updated = await store.subscriptions.update((s) => s.id === sub.id, {
     state: 'active',
     confirmed_at: new Date().toISOString(),
   });
@@ -430,7 +430,7 @@ export function buildUnsubscribeUrl(baseUrl, token) {
  * message) or by email/phone + filter. Cancels every matching pending or
  * active subscription.
  */
-export function unsubscribeAlertChannel(input = {}, { store = defaultStore } = {}) {
+export async function unsubscribeAlertChannel(input = {}, { store = defaultStore } = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw badRequest('bad_request', 'Send a JSON object with a token, or email/phone plus the filter.');
   }
@@ -438,7 +438,7 @@ export function unsubscribeAlertChannel(input = {}, { store = defaultStore } = {
 
   let matches = [];
   if (typeof input.token === 'string' && input.token) {
-    const sub = store.subscriptions.find((s) => s.confirm_token === input.token);
+    const sub = await store.subscriptions.find((s) => s.confirm_token === input.token);
     if (sub && sub.state !== 'unsubscribed') matches = [sub];
   } else {
     if (input.token != null) throw badRequest('bad_token', 'The token must be a string.');
@@ -447,7 +447,7 @@ export function unsubscribeAlertChannel(input = {}, { store = defaultStore } = {
     if (!email && !phone) throw badRequest('bad_request', 'Unsubscribe with a token, or with email/phone plus the filter.');
     const filter = validateFilter(input.filter);
     const filterKey = JSON.stringify(filter ?? {});
-    matches = store.subscriptions.filter(
+    matches = await store.subscriptions.filter(
       (s) =>
         s.state !== 'unsubscribed' &&
         s.filter_key === filterKey &&
@@ -460,7 +460,7 @@ export function unsubscribeAlertChannel(input = {}, { store = defaultStore } = {
   }
   const unsubscribedAt = new Date().toISOString();
   for (const sub of matches) {
-    store.subscriptions.update((s) => s.id === sub.id, { state: 'unsubscribed', unsubscribed_at: unsubscribedAt });
+    await store.subscriptions.update((s) => s.id === sub.id, { state: 'unsubscribed', unsubscribed_at: unsubscribedAt });
   }
   return { ok: true, unsubscribed: matches.length };
 }

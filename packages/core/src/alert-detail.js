@@ -52,12 +52,12 @@ const when = (iso) =>
  *
  * @param {object} store A store shaped like `createStore()`.
  * @param {object} alert The alert row — already scoped to the requesting user.
- * @returns {string} A complete HTML document.
+ * @returns {Promise<string>} A complete HTML document.
  */
-export function renderAlertDetail(store, alert) {
-  const release = store.releases.find((r) => r.id === alert.release_id);
+export async function renderAlertDetail(store, alert) {
+  const release = await store.releases.find((r) => r.id === alert.release_id);
   const artist = release
-    ? (store.artists.find((ar) => ar.id === release.artist_id) ?? {}).name ?? ''
+    ? ((await store.artists.find((ar) => ar.id === release.artist_id)) ?? {}).name ?? ''
     : '';
   const title = release ? release.title : alert.release_id;
   const kind = KIND_LABELS[alert.kind] ?? alert.kind;
