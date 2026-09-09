@@ -43,12 +43,33 @@
  *
  * An adapter failure (an `{ ok: false }` receipt, a thrown error, or a
  * garbage receipt — all normalized, never re-thrown) does not drop the
- * event: it is retried inside `dispatchAll` up to `maxAttempts` total
- * attempts. An event that exhausts its attempts lands on the dead-letter
+ * event: it is retried inside `dispatchAll` up to `maxAttempts` attempts
+ * per channel — the primary first, then each fallback channel in order
+ * (when `fallbackChannels` is configured), each with a fresh budget.
  * list (returned in the report and readable via `deadLetter()`), where it
  * waits for an operator — or for `redispatchDead()`, which gives every
  * dead letter a fresh set of attempts (e.g. after a broken adapter is
  * fixed or replaced).
+ *
+ * ## Channel fallback chains
+ *
+ * `fallbackChannels: { sms: ['email'] }` gives a channel a failover path:
+ * when the primary adapter exhausts `maxAttempts` without an `{ ok: true }`
+ * receipt, the event moves to the next fallback channel with a fresh
+ * attempt budget, and so on down the chain — the first success wins. An
+ * alert whose SMS provider is down still reaches the user by email
+ * instead of rotting on the dead-letter list. Only exhaustion moves the
+ * event down the chain: a retryable failure on the primary is retried on
+ * the primary first. Fallback maps are validated at construction —
+ * self-loops and cycles throw, because a looping chain would either spin
+ * or quietly become a single-channel retry, both of which would hide a
+ * real outage from the delivery log. An explicit `channel` override (the
+ * `dispatchAll` / `redispatchDead` operator argument) bypasses fallbacks:
+ * forced means forced.
+ *
+ * In dry-run mode the chain never fires: `resolveAdapter` already falls
+ * back to the `default` dry-run printer, so every channel "delivers" and
+ * the primary receipt is always `{ ok: true, dryRun: true }`.
  *
  * ## Delivery log
  *
@@ -65,8 +86,62 @@ import { createDryRunAdapter } from './send-adapters.js';
 import { ENGINE_TO_ALERT_KIND } from './alert-persistence.js';
 import { formatDropEmail } from './notify.js';
 
-/** Default retry budget: a failing adapter gets this many attempts per event, per pass. */
+/** Default retry budget: a failing adapter gets this many attempts per event, per channel, per pass. */
 export const DISPATCH_DEFAULT_MAX_ATTEMPTS = 3;
+
+/**
+ * Validate the channel fallback map (`{ sms: ['email'] }`). Every key is a
+ * channel name, every value a non-empty array of fallback channel names.
+ * Self-loops and cycles throw — a fallback loop would either spin or
+ * silently degrade into a single-channel retry, both of which would hide
+ * a real outage from the delivery log.
+ * @param {?object} fallbackChannels
+ * @returns {Map<string, string[]>} Normalized (deduped) fallback lists.
+ */
+function normalizeFallbackChannels(fallbackChannels) {
+  if (fallbackChannels == null) return new Map();
+  if (typeof fallbackChannels !== 'object' || Array.isArray(fallbackChannels)) {
+    throw new TypeError(
+      `alert dispatcher fallbackChannels must be an object, got ${Array.isArray(fallbackChannels) ? 'array' : typeof fallbackChannels}`,
+    );
+  }
+  const map = new Map();
+  for (const [channel, fallbacks] of Object.entries(fallbackChannels)) {
+    if (typeof channel !== 'string' || !channel) {
+      throw new TypeError(`alert dispatcher fallback channel name must be a non-empty string, got ${JSON.stringify(channel)}`);
+    }
+    if (!Array.isArray(fallbacks) || fallbacks.length === 0) {
+      throw new TypeError(`alert dispatcher fallbacks for '${channel}' must be a non-empty array of channel names`);
+    }
+    const clean = [];
+    for (const fb of fallbacks) {
+      if (typeof fb !== 'string' || !fb) {
+        throw new TypeError(`alert dispatcher fallback for '${channel}' must be a non-empty string, got ${JSON.stringify(fb)}`);
+      }
+      if (fb === channel) {
+        throw new TypeError(`alert dispatcher fallback for '${channel}' cannot list '${channel}' itself (self-loop)`);
+      }
+      if (!clean.includes(fb)) clean.push(fb);
+    }
+    map.set(channel, clean);
+  }
+  // Cycle check: a → b → a (or longer) would spin the chain walk.
+  for (const start of map.keys()) {
+    const seen = new Set([start]);
+    const stack = [...(map.get(start) ?? [])];
+    while (stack.length > 0) {
+      const next = stack.pop();
+      if (next === start) {
+        throw new TypeError(`alert dispatcher fallbackChannels has a cycle through '${start}' — fallback chains must be acyclic`);
+      }
+      if (!seen.has(next)) {
+        seen.add(next);
+        stack.push(...(map.get(next) ?? []));
+      }
+    }
+  }
+  return map;
+}
 
 /**
  * Default recipient resolution: an explicit `event.to` / `event.email`
@@ -131,8 +206,15 @@ export function composeDispatchMessage(event) {
  * @param {boolean} [input.dryRun] Default `true`: the dry-run printer is
  *   the default adapter and unregistered channels fall back to it. Set
  *   `false` only when real adapters are registered.
- * @param {number} [input.maxAttempts] Attempts per event per dispatch pass
- *   before dead-lettering. Must be a positive integer.
+ * @param {number} [input.maxAttempts] Attempts per event per channel per
+ *   dispatch pass before moving to the next fallback channel (or
+ *   dead-lettering). Must be a positive integer.
+ * @param {?(Object<string, string[]>)} [input.fallbackChannels] Failover
+ *   map, e.g. `{ sms: ['email'] }`: when a channel exhausts `maxAttempts`
+ *   without delivery, the event is attempted through each fallback in
+ *   order, each with a fresh budget. Validated at construction (no
+ *   self-loops, no cycles). An explicit `channel` override in
+ *   `dispatchAll`/`redispatchDead` bypasses fallbacks.
  * @param {() => number} [input.now] Clock, defaults to `Date.now`.
  * @param {{ write: Function }} [input.out] Writer for the dry-run adapter.
  * @returns {{ registerAdapter: Function, dispatchAll: Function, redispatchDead: Function, deadLetter: Function, adapters: Function, stats: Function }}
@@ -145,6 +227,7 @@ export function createAlertDispatcher({
   addressOf = null,
   dryRun = true,
   maxAttempts = DISPATCH_DEFAULT_MAX_ATTEMPTS,
+  fallbackChannels = null,
   now = () => Date.now(),
   out = process.stdout,
 } = {}) {
@@ -154,6 +237,7 @@ export function createAlertDispatcher({
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
     throw new TypeError(`alert dispatcher needs a positive integer maxAttempts, got ${maxAttempts}`);
   }
+  const fallbackMap = normalizeFallbackChannels(fallbackChannels);
   if (persistence != null && typeof persistence.recordAlert !== 'function') {
     throw new TypeError('alert dispatcher persistence needs a recordAlert function');
   }
@@ -202,17 +286,44 @@ export function createAlertDispatcher({
   }
 
   /**
-   * Deliver one event through one adapter. Never throws: a throwing
-   * adapter becomes an `{ ok: false }` receipt, and a non-object receipt
-   * becomes a refusal — both feed the retry path instead of crashing the
-   * run. A successful delivery re-marks the seen-set and writes the
-   * durable delivery-log row (when `persistence` is present).
+   * Ordered channel attempt list for one event: the primary first, then
+   * its fallbacks walked transitively (`sms → email`, `email → push` gives
+   * `[sms, email, push]`), deduped. Cycle-proof by construction — the
+   * constructor rejects cyclic maps, and the visited set guards anyway.
+   * @param {string} channelName
+   * @returns {string[]}
    */
-  async function sendEvent(event, { channelName }) {
+  function channelChain(channelName) {
+    const chain = [];
+    const seen = new Set();
+    const pending = [channelName];
+    while (pending.length > 0) {
+      const next = pending.shift();
+      if (seen.has(next)) continue;
+      seen.add(next);
+      chain.push(next);
+      for (const fb of fallbackMap.get(next) ?? []) {
+        if (!seen.has(fb)) pending.push(fb);
+      }
+    }
+    return chain;
+  }
+
+  /**
+   * One send attempt through one channel's adapter. Never throws: a
+   * throwing adapter becomes an `{ ok: false }` receipt, and a non-object
+   * receipt becomes a refusal — both feed the retry path instead of
+   * crashing the run. No side effects: the chain walker decides what a
+   * successful delivery means.
+   * @param {object} event
+   * @param {string} channelName
+   * @returns {Promise<{ channel: string, adapter: string, to: ?string, receipt: object, delivered: boolean }>}
+   */
+  async function attemptChannel(event, channelName) {
     const at = now();
     const adapter = resolveAdapter(channelName);
     if (!adapter) {
-      return { event, receipt: missingAdapterReceipt(channelName, at), delivered: false, adapter: channelName, to: null };
+      return { channel: channelName, adapter: channelName, to: null, receipt: missingAdapterReceipt(channelName, at), delivered: false };
     }
     const to = resolveAddress(event, adapter.name);
     const envelope = {
@@ -251,30 +362,80 @@ export function createAlertDispatcher({
       };
     }
     const delivered = receipt.ok === true;
-    if (delivered) {
-      queue.markSeen({ user_id: event?.user_id, release_id: event?.release_id });
-      if (persistence) await persistence.recordAlert(event, { channels: [receipt.channel ?? adapter.name], now });
-      deliveredCount += 1;
-    }
-    return { event, receipt, delivered, adapter: adapter.name, to };
+    return { channel: channelName, adapter: adapter.name, to, receipt, delivered };
   }
 
-  /** Run one batch of items to completion: up to `maxAttempts` each. */
+  /**
+   * Deliver one event down the channel fallback chain. The primary
+   * channel is attempted up to `maxAttempts` times; only exhaustion moves
+   * the event to the next fallback channel, which gets a fresh budget.
+   * The first `{ ok: true }` wins — a successful delivery re-marks the
+   * seen-set and writes the durable delivery-log row (when `persistence`
+   * is present), exactly once, through the delivering adapter's name.
+   * @param {object} event
+   * @param {{ channelName: string, allowFallback?: boolean }} input
+   * @returns {Promise<{ event: object, receipt: object, delivered: boolean, adapter: string, to: ?string, attempts: number, attemptedChannels: string[], attempted: Array }>}
+   */
+  async function sendEvent(event, { channelName, allowFallback = true }) {
+    const chain = allowFallback ? channelChain(channelName) : [channelName];
+    const attempted = [];
+    let attempts = 0;
+    for (const name of chain) {
+      let channelAttempts = 0;
+      while (channelAttempts < maxAttempts) {
+        channelAttempts += 1;
+        attempts += 1;
+        const attempt = await attemptChannel(event, name);
+        attempted.push(attempt);
+        if (attempt.delivered) {
+          queue.markSeen({ user_id: event?.user_id, release_id: event?.release_id });
+          if (persistence) await persistence.recordAlert(event, { channels: [attempt.receipt.channel ?? attempt.adapter], now });
+          deliveredCount += 1;
+          return finishSend(event, attempted, attempts, true);
+        }
+      }
+    }
+    return finishSend(event, attempted, attempts, false);
+  }
+
+  /**
+   * Shape one `sendEvent` outcome for the batch report: the last attempt's
+   * receipt/adapter/to stay top-level (same contract as before the chain
+   * existed), with the full per-channel trail (`attempted`) and the
+   * ordered channel list (`attemptedChannels`) alongside for operators.
+   */
+  function finishSend(event, attempted, attempts, delivered) {
+    const last = attempted[attempted.length - 1];
+    return {
+      event,
+      receipt: last.receipt,
+      delivered,
+      adapter: last.adapter,
+      to: last.to,
+      attempts,
+      attemptedChannels: [...new Set(attempted.map((a) => a.channel))],
+      attempted,
+    };
+  }
+
+  /**
+   * Run one batch of items to completion: each channel in an event's
+   * fallback chain gets up to `maxAttempts`. An explicit `channel`
+   * override bypasses fallbacks — forced means forced. Events that
+   * exhaust every channel land on the dead-letter list with their channel
+   * trail, never silently dropped.
+   */
   async function runBatch(items, { channel = null } = {}) {
     const delivered = [];
     const failed = [];
     for (const item of items) {
       const channelName = channel ?? item.event?.channel ?? 'default';
-      let result = null;
-      while (item.attempts < maxAttempts) {
-        item.attempts += 1;
-        result = await sendEvent(item.event, { channelName });
-        if (result.delivered) break;
-      }
+      const result = await sendEvent(item.event, { channelName, allowFallback: channel == null });
+      item.attempts = result.attempts;
       if (result.delivered) {
         delivered.push(result);
       } else {
-        const entry = { event: item.event, receipt: result.receipt, attempts: item.attempts };
+        const entry = { event: item.event, receipt: result.receipt, attempts: result.attempts, attemptedChannels: result.attemptedChannels };
         failed.push(entry);
         dead.push(entry);
       }
