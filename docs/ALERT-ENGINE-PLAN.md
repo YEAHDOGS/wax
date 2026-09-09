@@ -102,6 +102,29 @@ same transparency pattern as DOGS Remote's attempt log.
      `test-alert-routes.mjs` (15 tests).
    - **NEXT:** unsubscribe flow for email alerts (one-click List-Unsubscribe) — the missing piece
      before real sends, and it needs Brando's `RESEND_API_KEY` anyway.
+   - **BUILT (2026-09-09, jack/wax-routes):** alert-subscription HTTP routes —
+     `POST /api/alerts/subscribe` (email/phone + release filter, strict
+     validation, idempotent re-subscribe returns the existing row),
+     `GET /api/alerts/confirm?token=` (double-opt-in activation), and
+     `POST /api/alerts/unsubscribe` (token, or email/phone + filter). Domain
+     logic in `packages/core/src/subscriptions.js`: filter allowlist
+     (`artist_id`, `title_contains`, `max_price_cents`, `source_id` — unknown
+     fields rejected, never ignored), address validation (email format,
+     E.164 for SMS), confirmation dispatched through the existing
+     Resend/Twilio adapters when live keys are present and never attempted
+     without them — keyless or failing sends become a `{ ok: false }`
+     receipt on the row, never a throw. Rate-limit guard documented in the
+     module (per-address subscribe throttling + the notify caps, counters
+     move to Postgres with the table). The confirm token doubles as the
+     one-click unsubscribe token, so the plan's List-Unsubscribe flow is
+     the same endpoint. Subscriptions are keyed by address, not session —
+     no account needed to subscribe. Pinned by
+     `packages/core/test-subscription-routes.mjs` (26 tests: happy path,
+     idempotency, validation, never-throw delivery, adapter mapping).
+   - **NEXT:** wire List-Unsubscribe / List-Unsubscribe-Post headers into the
+     Resend adapter once live sends begin (needs Brando's `RESEND_API_KEY`);
+     add the per-address subscribe throttle counters alongside the
+     Postgres migration of `alert_subscriptions`.
 
 ## 5. Free-tier mapping
 
