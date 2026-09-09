@@ -165,6 +165,29 @@ export {
   ROUTE,
 } from './rules.js';
 export {
+  EVENT_KINDS,
+  prevStateKey,
+  releaseArtistName,
+  fuzzyContains,
+  artistMatches,
+  wantMatchesRelease,
+  classifyEvent,
+  runEngine,
+} from './alert-engine.js';
+export {
+  EVENT_PRIORITY,
+  QUEUE_DEFAULT_MAX_PER_USER_PER_HOUR,
+  queueDedupeKey,
+  createAlertQueue,
+} from './alert-queue.js';
+export {
+  SEND_WIRING,
+  createDisabledResendAdapter,
+  createDisabledTwilioAdapter,
+  createConsoleAdapter,
+  resolveSendAdapters,
+} from './send-adapters.js';
+export {
   DIGEST_MIN_INTERVAL_MS,
   DIGEST_MAX_AGE_MS,
   DIGEST_MAX_ITEMS,
