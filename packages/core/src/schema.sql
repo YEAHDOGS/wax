@@ -226,6 +226,32 @@ CREATE TABLE alerts (
 CREATE INDEX alerts_board_idx ON alerts (user_id, detected_at DESC);
 CREATE INDEX alerts_state_idx ON alerts (user_id, state);
 
+-- Held-back alerts waiting for the next digest email. The notify gate
+-- (src/notify.js) folds excess alerts into "the next digest instead of
+-- dropping them"; this table is that promise. One row per (user, alert):
+-- the same release is never queued twice. Rows die on success (flush),
+-- on expiry (a week — the queue is a buffer, not an archive), or on
+-- user/alert deletion.
+CREATE TABLE digest_queue (
+  id            text        PRIMARY KEY,
+  user_id       text        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  alert_id      text        NOT NULL REFERENCES alerts(id) ON DELETE CASCADE,
+  kind          text        NOT NULL DEFAULT 'drop'
+                            CHECK (kind IN ('drop', 'price', 'restock', 'merch')),
+  artist_name   text        NOT NULL,
+  title         text        NOT NULL,
+  price_cents   integer,
+  listing_url   text,
+  source_label  text,
+  -- Why the alert was held back: rate cap, free-tier SMS denial,
+  -- unverified phone, quiet hours. Joined ' | ' when several applied.
+  reason        text        NOT NULL DEFAULT 'held for digest',
+  queued_at     timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (user_id, alert_id)
+);
+
+CREATE INDEX digest_queue_user_idx ON digest_queue (user_id, queued_at);
+
 -- ------------------------------------------------------- scan worker --
 
 -- The scan worker's attempt log (ALERT-ENGINE-PLAN.md §2): one row per scan
@@ -236,8 +262,11 @@ CREATE TABLE scan_logs (
   id            text        PRIMARY KEY,
   source_id     text        NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
   scanned_at    timestamptz NOT NULL DEFAULT now(),
+  -- 'dispatch' and 'digest' are the alert engine's delivery receipts
+  -- (src/dispatch.js, src/digest.js) — logged here so every send is
+  -- inspectable next to the scan attempts that found the drop.
   outcome       text        NOT NULL DEFAULT 'ok'
-                            CHECK (outcome IN ('ok', 'fetch_failed', 'error')),
+                            CHECK (outcome IN ('ok', 'fetch_failed', 'error', 'dispatch', 'digest')),
   status_code   integer,
   -- True on a source's first scan: the snapshot was stored, nothing alerted.
   baseline      boolean     NOT NULL DEFAULT false,
