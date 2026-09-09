@@ -15,6 +15,9 @@
  * | `scanner.js`  | Scan loop core (alert engine gate 2): normalize product     |
  * |               | lists, snapshot hashing, diffing, artist matching,         |
  * |               | cross-source dedupe. Pure logic, zero network I/O.        |
+ * | `tracking.js` | Per-site tracking config (alert engine gates 3+): add/      |
+ * |               | update/remove/list merch sites with probe verdicts,        |
+ * |               | pause and interval control, free-tier caps.                |
  *
  * Two consumers import from here and they get identical behaviour:
  *
@@ -41,6 +44,14 @@ export { store, createStore, newId, newToken } from './store.js';
 export { seed } from './seed.js';
 export { TYPES_VERSION } from './types.js';
 export { probeScannability, PROBE_METHODS, PROBE_FAILURE_REASONS } from './probe.js';
+export {
+  addSource,
+  updateSource,
+  removeSource,
+  listSources,
+  FREE_SOURCE_LIMIT,
+  MIN_SCAN_INTERVAL_SECS,
+} from './tracking.js';
 export {
   normalizeProduct,
   normalizeProductList,
