@@ -323,6 +323,17 @@
  */
 
 /**
+ * A subscribe/confirm rate-limit attempt (src/subscriptions.js). Rows are
+ * counted in a rolling window per key; old rows are pruned lazily.
+ *
+ * @typedef {object} SubscribeAttempt
+ * @property {string}   id
+ * @property {string}   key  `channel:address` for subscribes, the presented token for confirms.
+ * @property {'subscribe'|'confirm'} kind
+ * @property {Timestamp} at
+ */
+
+/**
  * Why an alert fired.
  * - `drop`    — a new pressing exists
  * - `price`   — a listing crossed the user's target

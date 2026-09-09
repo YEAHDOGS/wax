@@ -28,16 +28,22 @@
  * This module never throws for a delivery problem; validation problems
  * throw {@link ApiError} like every other handler.
  *
- * ## Rate-limit guard (note — enforced counters land with Postgres)
+ * ## Rate-limit guard
  *
- * Subscribes must be throttled per recipient (a few pending
- * confirmations per address per hour is plenty — more is list-bombing
- * bait), confirm attempts capped per token, and the eventual live sends
- * gated by the notify layer's `shouldDispatch` caps
- * (`EMAIL_PER_HOUR_CAP` / `SMS_PER_HOUR_CAP` in `notify.js`). The
- * in-memory store keeps no cross-instance counters, so these guards are
- * noted here and enforced when the subscriptions table moves to
- * Postgres alongside per-address attempt counters.
+ * Subscribes are throttled per recipient address
+ * (`MAX_SUBSCRIBE_ATTEMPTS_PER_WINDOW` new subscribes per rolling
+ * `SUBSCRIBE_WINDOW_MS`) — a few pending confirmations per address per
+ * hour is plenty, more is list-bombing bait. Confirm attempts are capped
+ * per presented token (`MAX_CONFIRM_ATTEMPTS_PER_WINDOW` failures per
+ * rolling window) so unknown-token probing cannot brute-force the token
+ * space. The eventual live sends are additionally gated by the notify
+ * layer's `shouldDispatch` caps (`EMAIL_PER_HOUR_CAP` /
+ * `SMS_PER_HOUR_CAP` in `notify.js`).
+ *
+ * Attempt counters live in the store's `subscribeAttempts` collection
+ * (rows: `{ id, key, kind, at }`), so the in-memory store holds them
+ * today and the Postgres swap inherits the guards with the
+ * `subscribe_attempt` table — no handler changes either way.
  */
 
 import { ApiError } from './handlers.js';
@@ -72,6 +78,61 @@ const E164_RE = /^\+[1-9]\d{7,14}$/;
 
 /** Where the confirm link points. Overridable per call for tests. */
 export const DEFAULT_CONFIRM_BASE_URL = 'https://wax.wearedogs.net/api/alerts/confirm';
+
+/**
+ * New subscribes allowed per address per rolling window. Five new
+ * pending confirmations an hour is generous for a human; a flood is
+ * list-bombing.
+ */
+export const SUBSCRIBE_WINDOW_MS = 60 * 60 * 1000;
+export const MAX_SUBSCRIBE_ATTEMPTS_PER_WINDOW = 5;
+
+/** Failed confirms allowed per presented token per rolling window. */
+export const CONFIRM_WINDOW_MS = 60 * 60 * 1000;
+export const MAX_CONFIRM_ATTEMPTS_PER_WINDOW = 10;
+
+/**
+ * Count recent attempts for a key/kind and prune expired rows. The
+ * sliding window is computed from `nowMs`, so tests can pin the clock.
+ *
+ * @param {object} store
+ * @param {string} kind 'subscribe' | 'confirm'
+ * @param {string} key Address (subscribe) or presented token (confirm).
+ * @param {number} windowMs
+ * @param {number} nowMs
+ * @returns {number} Attempts inside the window.
+ */
+function recentAttempts(store, kind, key, windowMs, nowMs) {
+  const cutoff = nowMs - windowMs;
+  store.subscribeAttempts.remove((a) => a.kind === kind && a.key === key && Date.parse(a.at) <= cutoff);
+  return store.subscribeAttempts.filter((a) => a.kind === kind && a.key === key).length;
+}
+
+/**
+ * Refuse when the key has spent its attempt budget for the window.
+ * Throws a 429 `ApiError` — not a 400 — because the request is well
+ * formed; it just arrived too often.
+ */
+function checkThrottle({ store, kind, key, windowMs, max, nowMs, what }) {
+  const seen = recentAttempts(store, kind, key, windowMs, nowMs);
+  if (seen >= max) {
+    throw new ApiError(
+      429,
+      'rate_limited',
+      `Too many ${what} — try again in a bit (limit ${max} per hour).`,
+    );
+  }
+}
+
+/** Record a spent attempt (every recorded attempt was itself allowed). */
+function recordAttempt(store, kind, key, nowMs) {
+  store.subscribeAttempts.insert({
+    id: newId('satt'),
+    key,
+    kind,
+    at: new Date(nowMs).toISOString(),
+  });
+}
 
 const badRequest = (code, message) => new ApiError(400, code, message);
 
@@ -240,6 +301,20 @@ export async function subscribeAlertChannel(
   );
   if (existing) return { subscription: publicSubscription(existing, { duplicate: true }), confirm_token: existing.confirm_token, delivered: existing.confirm_receipt?.ok === true };
 
+  // Throttle before any new send: each new subscribe spends one attempt
+  // for the address. Idempotent duplicates above return before this, so
+  // re-posting the same subscription never burns budget or re-sends.
+  checkThrottle({
+    store,
+    kind: 'subscribe',
+    key: `${kind}:${recipient}`,
+    windowMs: SUBSCRIBE_WINDOW_MS,
+    max: MAX_SUBSCRIBE_ATTEMPTS_PER_WINDOW,
+    nowMs: now,
+    what: 'subscription attempts for this address',
+  });
+  recordAttempt(store, 'subscribe', `${kind}:${recipient}`, now);
+
   const sub = store.subscriptions.insert({
     id: newId('sub'),
     email,
@@ -270,14 +345,34 @@ export async function subscribeAlertChannel(
  * Confirm a pending subscription (double opt-in). Idempotent: clicking the
  * link again on an active subscription returns it unchanged.
  *
+ * Unknown tokens spend one confirm attempt each, capped per token per
+ * rolling window (429 past the cap) — the token is the only credential
+ * in this flow, so probing it must have a price. Valid tokens are never
+ * counted: a real confirm, a repeat click, and a cancelled-link 410 are
+ * all honest traffic.
+ *
  * @param {?string} token The confirm token from the link.
+ * @param {object} [deps]
+ * @param {number} [deps.now]
  */
-export function confirmAlertSubscription(token, { store = defaultStore } = {}) {
+export function confirmAlertSubscription(token, { store = defaultStore, now = Date.now() } = {}) {
   if (typeof token !== 'string' || !token) {
     throw new ApiError(404, 'bad_token', 'That confirmation link is invalid or already used.');
   }
   const sub = store.subscriptions.find((s) => s.confirm_token === token);
-  if (!sub) throw new ApiError(404, 'bad_token', 'That confirmation link is invalid or already used.');
+  if (!sub) {
+    checkThrottle({
+      store,
+      kind: 'confirm',
+      key: token,
+      windowMs: CONFIRM_WINDOW_MS,
+      max: MAX_CONFIRM_ATTEMPTS_PER_WINDOW,
+      nowMs: now,
+      what: 'confirmation attempts with this token',
+    });
+    recordAttempt(store, 'confirm', token, now);
+    throw new ApiError(404, 'bad_token', 'That confirmation link is invalid or already used.');
+  }
   if (sub.state === 'active') return publicSubscription(sub);
   if (sub.state === 'unsubscribed') {
     throw new ApiError(410, 'gone', 'This subscription was cancelled. Subscribe again for a fresh link.');
