@@ -102,10 +102,12 @@ test('unread alerts are marked; read ones are not', () => {
   addAlert(store, { id: 'alr_read', read_at: BASE });
 
   const html = renderAlertHistory(store, 'usr_hist');
-  const unreadLine = html.split('\n').find((l) => l.includes('alr_unread'));
-  const readLine = html.split('\n').find((l) => l.includes('alr_read'));
-  assert.ok(unreadLine && unreadLine.includes('unread'), 'unread row carries the unread marker');
-  assert.ok(readLine && !readLine.includes('unread'), 'read row has no unread marker');
+  const itemFor = (id) => html.slice(html.indexOf(`data-id="${id}"`)).split('</li>')[0];
+  assert.ok(
+    itemFor('alr_unread').includes('<span class="unread">unread</span>'),
+    'unread row carries the unread marker',
+  );
+  assert.ok(!itemFor('alr_read').includes('unread'), 'read row has no unread marker');
 });
 
 test('hostile data is escaped; javascript: URLs never become links', () => {
