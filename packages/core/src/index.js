@@ -195,6 +195,12 @@ export {
 } from './alert-queue.js';
 export { createAlertScheduler } from './alert-scheduler.js';
 export {
+  COLLECTION_SKIP_REASONS,
+  mapCollectionEntry,
+  collectionToBatch,
+  createCollectionProvider,
+} from './collection-batch.js';
+export {
   ENGINE_STATE_KEY_SEP,
   ENGINE_TO_ALERT_KIND,
   splitEngineKey,
