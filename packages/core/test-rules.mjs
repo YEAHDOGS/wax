@@ -184,10 +184,10 @@ test('alertDedupeKey: same release, different casing/punctuation — one key', (
   assert.equal(normText('  MF—DOOM!! '), 'mf doom');
 });
 
-test('alreadyAlerted: a dispatched row blocks re-alert; a failed row does not', () => {
+test('alreadyAlerted: a dispatched row blocks re-alert; a failed row does not', async () => {
   const store = emptyStore();
   const key = alertDedupeKey({ user_id: 'usr_night', artist_name: 'MF DOOM', title: 'MM..FOOD' });
-  assert.equal(alreadyAlerted(store, key), false);
+  assert.equal(await alreadyAlerted(store, key), false);
   store.alerts.insert({
     id: 'alr_sent',
     user_id: 'usr_night',
@@ -196,7 +196,7 @@ test('alreadyAlerted: a dispatched row blocks re-alert; a failed row does not', 
     dispatched_at: new Date(NOON).toISOString(),
     channels: ['email'],
   });
-  assert.equal(alreadyAlerted(store, key), true);
+  assert.equal(await alreadyAlerted(store, key), true);
   const failedKey = alertDedupeKey({ user_id: 'usr_night', artist_name: 'Madlib', title: 'Shades of Blue' });
   store.alerts.insert({
     id: 'alr_failed',
@@ -206,13 +206,13 @@ test('alreadyAlerted: a dispatched row blocks re-alert; a failed row does not', 
     dispatched_at: new Date(NOON).toISOString(),
     channels: [],
   });
-  assert.equal(alreadyAlerted(store, failedKey), false, 'failed sends may retry');
+  assert.equal(await alreadyAlerted(store, failedKey), false, 'failed sends may retry');
 });
 
-test('routeAlerts: same release twice in one pass routes once, drops the twin', () => {
+test('routeAlerts: same release twice in one pass routes once, drops the twin', async () => {
   const item = baseItem();
   const rule = doomRule();
-  const { sendNow, digest, dropped } = routeAlerts({
+  const { sendNow, digest, dropped } = await routeAlerts({
     ...routeArgs(),
     items: [item, { ...item }],
     rules: [rule, rule],
@@ -223,7 +223,7 @@ test('routeAlerts: same release twice in one pass routes once, drops the twin', 
   assert.ok(dropped[0].reasons.some((r) => r.includes('duplicate in batch')));
 });
 
-test('routeAlert: already-dispatched release is dropped, not re-sent', () => {
+test('routeAlert: already-dispatched release is dropped, not re-sent', async () => {
   const store = emptyStore();
   store.alerts.insert({
     id: 'alr_old',
@@ -233,7 +233,7 @@ test('routeAlert: already-dispatched release is dropped, not re-sent', () => {
     dispatched_at: new Date(NOON - 1000).toISOString(),
     channels: ['email'],
   });
-  const { route, reasons } = routeAlert({ ...routeArgs({ store }), item: baseItem(), rule: doomRule() });
+  const { route, reasons } = await routeAlert({ ...routeArgs({ store }), item: baseItem(), rule: doomRule() });
   assert.equal(route, ROUTE.DROP);
   assert.ok(reasons.some((r) => r.includes('dedupe')));
 });
@@ -265,8 +265,8 @@ test('isQuietHour: inside, outside, and overnight wrap', () => {
   assert.equal(isQuietHour({ quiet_start: '22:00', quiet_end: '22:00', nowMs: NIGHT }), false);
 });
 
-test('routeAlert: quiet hours defer to the digest, never send', () => {
-  const { route, reasons } = routeAlert({
+test('routeAlert: quiet hours defer to the digest, never send', async () => {
+  const { route, reasons } = await routeAlert({
     ...routeArgs({ user: NIGHT_USER, nowMs: NIGHT }),
     item: baseItem(),
     rule: doomRule(),
@@ -275,8 +275,8 @@ test('routeAlert: quiet hours defer to the digest, never send', () => {
   assert.ok(reasons.some((r) => r.includes('quiet hours')));
 });
 
-test('routeAlert: outside quiet hours the gate decides — ok means send now', () => {
-  const { route } = routeAlert({
+test('routeAlert: outside quiet hours the gate decides — ok means send now', async () => {
+  const { route } = await routeAlert({
     ...routeArgs({ user: NIGHT_USER, nowMs: NOON }),
     item: baseItem(),
     rule: doomRule(),
@@ -284,12 +284,12 @@ test('routeAlert: outside quiet hours the gate decides — ok means send now', (
   assert.equal(route, ROUTE.SEND_NOW);
 });
 
-test('routeAlert: rate cap folds into the digest, it never drops or sends #41', () => {
+test('routeAlert: rate cap folds into the digest, it never drops or sends #41', async () => {
   const sentThisWindow = Array.from({ length: 60 }, (_, i) => ({
     channel: 'email',
     sent_at: new Date(NOON - i * 1000).toISOString(),
   }));
-  const { route, reasons } = routeAlert({
+  const { route, reasons } = await routeAlert({
     ...routeArgs({ sentThisWindow }),
     item: baseItem(),
     rule: doomRule(),
@@ -298,11 +298,11 @@ test('routeAlert: rate cap folds into the digest, it never drops or sends #41', 
   assert.ok(reasons.some((r) => r.includes('rate cap')));
 });
 
-test('routeAlert: free-tier SMS is digest-folded, series SMS sends', () => {
+test('routeAlert: free-tier SMS is digest-folded, series SMS sends', async () => {
   const smsItem = { ...baseItem(), channel: undefined };
-  const free = routeAlert({ ...routeArgs({ channel: 'sms', plan: 'free' }), item: smsItem, rule: doomRule() });
+  const free = await routeAlert({ ...routeArgs({ channel: 'sms', plan: 'free' }), item: smsItem, rule: doomRule() });
   assert.equal(free.route, ROUTE.DEFER_DIGEST);
-  const series = routeAlert({
+  const series = await routeAlert({
     ...routeArgs({ channel: 'sms', plan: 'series', user: { ...NIGHT_USER, phone_verified: true } }),
     item: smsItem,
     rule: doomRule(),
@@ -341,7 +341,7 @@ test('buildDigestBatch: one digest carries every deferred alert', () => {
   assert.ok(digest.text.includes('https://shop.example/mm-food'));
 });
 
-test('routeAlerts end to end: send-now, defer-digest, drop in one pass', () => {
+test('routeAlerts end to end: send-now, defer-digest, drop in one pass', async () => {
   const store = emptyStore();
   const quietUser = { ...NIGHT_USER };
   const rules = [doomRule(), doomRule({ title_contains: 'test press' }), doomRule()];
@@ -350,7 +350,7 @@ test('routeAlerts end to end: send-now, defer-digest, drop in one pass', () => {
     baseItem({ title: 'MM..FOOD Instrumentals' }), // title rule misses → drop
     { ...baseItem(), title: 'Operation: Doomsday' }, // matches, quiet → digest
   ];
-  const { sendNow, digest, dropped } = routeAlerts({
+  const { sendNow, digest, dropped } = await routeAlerts({
     store,
     user: quietUser,
     channel: 'email',

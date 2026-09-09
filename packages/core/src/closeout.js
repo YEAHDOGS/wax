@@ -40,9 +40,9 @@ import { alertDedupeKey, alreadyAlerted } from './rules.js';
  *
  * @param {object} store A `@wax/core` store.
  * @param {Array<object>} alerts Feed items from `runScanPass`.
- * @returns {{ fresh: Array<object>, dedupeDropped: number }}
+ * @returns {Promise<{ fresh: Array<object>, dedupeDropped: number }>}
  */
-export function filterAlreadyAlerted(store, alerts) {
+export async function filterAlreadyAlerted(store, alerts) {
   const fresh = [];
   let dedupeDropped = 0;
   for (const alert of alerts ?? []) {
@@ -51,7 +51,7 @@ export function filterAlreadyAlerted(store, alerts) {
       artist_name: alert?.artist_name,
       title: alert?.title,
     });
-    if (alreadyAlerted(store, key)) {
+    if (await alreadyAlerted(store, key)) {
       dedupeDropped += 1;
       continue;
     }
@@ -74,11 +74,11 @@ export function filterAlreadyAlerted(store, alerts) {
  * @returns {Promise<{ dispatched: number, receipts: number, dedupeDropped: number, queued: number, queuedSkipped: number, digestExpired: number, digestUsers: Array<object> }>}
  */
 export async function runAlertCloseout({ store, alerts = [], channels = {}, fanout = [], nowMs = Date.now() }) {
-  const { fresh, dedupeDropped } = filterAlreadyAlerted(store, alerts);
+  const { fresh, dedupeDropped } = await filterAlreadyAlerted(store, alerts);
 
   const dispatch = await dispatchScanAlerts({ store, alerts: fresh, channels, fanout, nowMs });
 
-  const { queued, skipped: queuedSkipped } = queueHeldAlerts({ store, alerts: dispatch.alerts, nowMs });
+  const { queued, skipped: queuedSkipped } = await queueHeldAlerts({ store, alerts: dispatch.alerts, nowMs });
 
   const { expired: digestExpired, users: digestUsers } = await flushDigestQueue({ store, channels, nowMs });
 

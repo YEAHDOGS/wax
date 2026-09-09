@@ -199,12 +199,12 @@ export function evaluateWatchRule({ product, rule }) {
  * failed dispatch may retry on the next pass instead of going silent.
  * @param {object} store A `@wax/core` store.
  * @param {string} key From {@link alertDedupeKey}.
- * @returns {boolean}
+ * @returns {Promise<boolean>}
  */
-export function alreadyAlerted(store, key) {
+export async function alreadyAlerted(store, key) {
   if (!store || !key) return false;
-  return store.alerts
-    .filter((a) => a && a.dispatched_at && (a.channels ?? []).length > 0)
+  return (await store.alerts
+    .filter((a) => a && a.dispatched_at && (a.channels ?? []).length > 0))
     .some((a) => alertDedupeKey({ user_id: a.user_id, artist_name: a.artist_name, title: a.title }) === key);
 }
 
@@ -241,16 +241,16 @@ export const ROUTE = Object.freeze({
  * @param {'free'|'trial'|'series'} input.plan
  * @param {Array<{ channel: string, sent_at: string }>} input.sentThisWindow
  * @param {number} [input.nowMs]
- * @returns {{ route: string, reasons: string[] }}
+ * @returns {Promise<{ route: string, reasons: string[] }>}
  */
-export function routeAlert({ item, rule, user, store, channel, plan, sentThisWindow, nowMs = Date.now() }) {
+export async function routeAlert({ item, rule, user, store, channel, plan, sentThisWindow, nowMs = Date.now() }) {
   const evalResult = evaluateWatchRule({ product: item, rule });
   if (!evalResult.match) {
     return { route: ROUTE.DROP, reasons: ['rule did not match', ...evalResult.reasons] };
   }
 
   const key = alertDedupeKey({ user_id: item?.user_id, artist_name: item?.artist_name, title: item?.title });
-  if (alreadyAlerted(store, key)) {
+  if (await alreadyAlerted(store, key)) {
     return { route: ROUTE.DROP, reasons: [...evalResult.reasons, 'dedupe: user was already alerted about this release'] };
   }
 
@@ -283,9 +283,9 @@ export function routeAlert({ item, rule, user, store, channel, plan, sentThisWin
  * @param {'free'|'trial'|'series'} input.plan
  * @param {Array<{ channel: string, sent_at: string }>} input.sentThisWindow
  * @param {number} [input.nowMs]
- * @returns {{ sendNow: Array<{ item: object, reasons: string[] }>, digest: Array<{ item: object, reasons: string[] }>, dropped: Array<{ item: object, reasons: string[] }> }}
+ * @returns {Promise<{ sendNow: Array<{ item: object, reasons: string[] }>, digest: Array<{ item: object, reasons: string[] }>, dropped: Array<{ item: object, reasons: string[] }> }>}
  */
-export function routeAlerts({ items, rules, user, store, channel, plan, sentThisWindow, nowMs = Date.now() }) {
+export async function routeAlerts({ items, rules, user, store, channel, plan, sentThisWindow, nowMs = Date.now() }) {
   const sendNow = [];
   const digest = [];
   const dropped = [];
@@ -301,7 +301,7 @@ export function routeAlerts({ items, rules, user, store, channel, plan, sentThis
       continue;
     }
     seen.add(key);
-    const { route, reasons } = routeAlert({ item, rule, user, store, channel, plan, sentThisWindow, nowMs });
+    const { route, reasons } = await routeAlert({ item, rule, user, store, channel, plan, sentThisWindow, nowMs });
     if (route === ROUTE.SEND_NOW) sendNow.push({ item, reasons });
     else if (route === ROUTE.DEFER_DIGEST) digest.push({ item, reasons });
     else dropped.push({ item, reasons });

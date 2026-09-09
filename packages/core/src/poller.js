@@ -132,13 +132,13 @@ export function escalateIntervalSecs(currentSecs) {
  * The artists one user is watching, as `matchArtists` wants them.
  * @param {object} store A `@wax/core` store.
  * @param {string} userId
- * @returns {Array<{ id: string, name: string, aliases?: string[], watch: object }>}
+ * @returns {Promise<Array<{ id: string, name: string, aliases?: string[], watch: object }>>}
  */
-export function watchedArtists(store, userId) {
-  const watches = store.watches.filter((w) => w.user_id === userId);
+export async function watchedArtists(store, userId) {
+  const watches = await store.watches.filter((w) => w.user_id === userId);
   const out = [];
   for (const watch of watches) {
-    const artist = store.artists.find((a) => a.id === watch.artist_id);
+    const artist = await store.artists.find((a) => a.id === watch.artist_id);
     if (artist) out.push({ id: artist.id, name: artist.name, aliases: artist.aliases, watch });
   }
   return out;
@@ -151,12 +151,12 @@ export function watchedArtists(store, userId) {
  * @param {object} store
  * @param {string} userId
  * @param {number} [nowMs]
- * @returns {Array<{ channel: string, sent_at: string }>}
+ * @returns {Promise<Array<{ channel: string, sent_at: string }>>}
  */
-export function sentThisWindow(store, userId, nowMs = Date.now()) {
+export async function sentThisWindow(store, userId, nowMs = Date.now()) {
   const cutoff = nowMs - RATE_WINDOW_MS;
   const out = [];
-  for (const alert of store.alerts.filter((a) => a.user_id === userId && a.dispatched_at)) {
+  for (const alert of await store.alerts.filter((a) => a.user_id === userId && a.dispatched_at)) {
     if (Date.parse(alert.dispatched_at) < cutoff) continue;
     for (const channel of alert.channels ?? []) out.push({ channel, sent_at: alert.dispatched_at });
   }
@@ -180,7 +180,7 @@ function sourceLabel(source) {
  * @param {object} store
  * @param {object} entry Fields of a `scan_logs` row minus `id`.
  */
-export function recordScanLog(store, entry) {
+export async function recordScanLog(store, entry) {
   return store.scanLogs.insert({ id: newId('scl'), scanned_at: new Date().toISOString(), ...entry });
 }
 
@@ -220,14 +220,14 @@ export async function scanOneSource({ store, source, fetcher, nowMs = Date.now()
  * from this attempt — otherwise a failing source would be retried every
  * pass until the clock caught up.
  */
-function failSource(store, source, isoNow, outcome, error) {
+async function failSource(store, source, isoNow, outcome, error) {
   const failures = (source.consecutive_failures ?? 0) + 1;
   const interval = escalateIntervalSecs(source.scan_interval_secs);
-  store.sources.update(
+  await store.sources.update(
     (s) => s.id === source.id,
     { consecutive_failures: failures, scan_interval_secs: interval, last_scan_at: isoNow },
   );
-  const log = recordScanLog(store, {
+  const log = await recordScanLog(store, {
     source_id: source.id,
     outcome,
     error: String(error).slice(0, 500),
@@ -243,8 +243,8 @@ function failSource(store, source, isoNow, outcome, error) {
 
 /** The success path: diff, match, persist everything. New drops are returned
  * as *matches*; the pass turns them into alerts after cross-source dedupe. */
-function succeedSource(store, source, { rawList, status }, isoNow) {
-  const prev = store.scanSnapshots.find((s) => s.source_id === source.id);
+async function succeedSource(store, source, { rawList, status }, isoNow) {
+  const prev = await store.scanSnapshots.find((s) => s.source_id === source.id);
   const { candidates, snapshot, log } = scanSnapshot({
     source_id: source.id,
     method: source.scan_method,
@@ -255,25 +255,25 @@ function succeedSource(store, source, { rawList, status }, isoNow) {
   const baseline = !prev;
   const newCandidates = baseline ? [] : candidates;
 
-  const artists = watchedArtists(store, source.user_id);
+  const artists = await watchedArtists(store, source.user_id);
   const matches = dedupeCandidates(
     matchArtists(newCandidates, artists).map((m) => ({ ...m, source_id: source.id })),
   );
 
   if (prev) {
-    store.scanSnapshots.update((s) => s.source_id === source.id, {
+    await store.scanSnapshots.update((s) => s.source_id === source.id, {
       hash: snapshot.hash,
       products: snapshot.products,
       updated_at: isoNow,
     });
   } else {
-    store.scanSnapshots.insert({ source_id: source.id, hash: snapshot.hash, products: snapshot.products, updated_at: isoNow });
+    await store.scanSnapshots.insert({ source_id: source.id, hash: snapshot.hash, products: snapshot.products, updated_at: isoNow });
   }
-  store.sources.update(
+  await store.sources.update(
     (s) => s.id === source.id,
     { snapshot_hash: snapshot.hash, last_scan_at: isoNow, consecutive_failures: 0 },
   );
-  const row = recordScanLog(store, {
+  const row = await recordScanLog(store, {
     ...log,
     source_id: source.id,
     scanned_at: isoNow,
@@ -294,28 +294,28 @@ function succeedSource(store, source, { rawList, status }, isoNow) {
  * spread across sources folds into the digest instead of slipping past the
  * rate gate one source at a time.
  */
-function buildAlerts(store, matches, nowMs) {
+async function buildAlerts(store, matches, nowMs) {
   // One rate-window ledger per user: the store's recent dispatches plus this
   // pass's own, so a flood spread across sources folds into the digest
   // instead of slipping past the gate one source at a time.
   const ledgers = new Map();
-  const ledgerFor = (userId) => {
-    if (!ledgers.has(userId)) ledgers.set(userId, sentThisWindow(store, userId, nowMs));
+  const ledgerFor = async (userId) => {
+    if (!ledgers.has(userId)) ledgers.set(userId, await sentThisWindow(store, userId, nowMs));
     return ledgers.get(userId);
   };
   const out = [];
 
   for (const m of matches ?? []) {
-    const source = store.sources.find((s) => s.id === m.source_id);
+    const source = await store.sources.find((s) => s.id === m.source_id);
     if (!source) continue;
-    const user = store.users.find((u) => u.id === source.user_id);
+    const user = await store.users.find((u) => u.id === source.user_id);
     // Read-path trial enforcement: a trial past its expiry reads as free
     // even before the hourly sweep writes it. See `effectivePlan`.
     const plan = effectivePlan(user, { now: nowMs });
-    const watch = m.artist.watch ?? store.watches.find((w) => w.user_id === source.user_id && w.artist_id === m.artist.id);
+    const watch = m.artist.watch ?? (await store.watches.find((w) => w.user_id === source.user_id && w.artist_id === m.artist.id));
     const channels = watch?.channels?.length ? watch.channels : ['email'];
     const label = sourceLabel(source);
-    const sent = ledgerFor(source.user_id);
+    const sent = await ledgerFor(source.user_id);
     const alertShape = { kind: 'drop', listing_url: m.product.url || source.url, price_cents: m.product.price_cents };
     const deliveries = [];
 
@@ -384,7 +384,7 @@ function buildAlerts(store, matches, nowMs) {
  * @returns {Promise<{ now: string, due: number, succeeded: number, failed: number, newAlerts: number, alerts: object[], results: object[] }>}
  */
 export async function runScanPass({ store, fetcher, nowMs = Date.now(), limit = PASS_LIMIT }) {
-  const due = selectDueSources(store.sources.all(), nowMs).slice(0, Math.max(0, limit));
+  const due = selectDueSources(await store.sources.all(), nowMs).slice(0, Math.max(0, limit));
   const results = [];
   const allMatches = [];
 
@@ -396,7 +396,7 @@ export async function runScanPass({ store, fetcher, nowMs = Date.now(), limit = 
 
   // One release on three sites is one alert, not three — dedupe across the
   // whole pass, then feed the survivors into the notify path.
-  const alerts = buildAlerts(store, dedupeCandidates(allMatches), nowMs);
+  const alerts = await buildAlerts(store, dedupeCandidates(allMatches), nowMs);
 
   return {
     now: new Date(nowMs).toISOString(),
