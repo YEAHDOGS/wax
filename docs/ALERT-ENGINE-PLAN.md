@@ -388,6 +388,23 @@ same transparency pattern as DOGS Remote's attempt log.
      resolver headers, static passthrough, no-headers regression,
      malformed-URL refusal before any network, throwing/junk resolvers,
      keyless-still-disabled regression).
+   - **BUILT (2026-09-09, jack/wax-dispatch-fallback):** channel fallback
+     chains — `createAlertDispatcher({ fallbackChannels: { sms: ['email']
+     } })` gives each channel a failover path: when the primary exhausts
+     `maxAttempts` without an `{ ok: true }` receipt, the event moves to
+     the next fallback (transitive, deduped — `sms → email → push` walks
+     in order), each channel with a fresh attempt budget. First success
+     wins, exactly-once is preserved (seen-set + delivery-log row written
+     once, through the delivering channel), and total failure
+     dead-letters with the full `attemptedChannels` trail instead of a
+     bare refusal. Self-loops and cycles are rejected at construction
+     (loud, never a silent spin). Explicit `channel` overrides in
+     `dispatchAll`/`redispatchDead` bypass fallbacks (forced is forced);
+     dry-run never triggers the chain. Pinned by
+     `packages/core/test-dispatch-fallback.mjs` (17 tests). Suggested
+     live wiring (Brando's call): `fallbackChannels: { sms: ['email'] }`
+     at dispatcher construction in the live boot path, so an SMS
+     provider outage still reaches paying users by email.
    - **NEXT (unchanged):** the actual live sends still wait on Brando's
      `RESEND_API_KEY`.
    - **BUILT (2026-09-09, jack/wax-list-unsubscribe):** per-address
