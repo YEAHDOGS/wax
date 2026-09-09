@@ -11,6 +11,6 @@ import { getSession, logout } from '@wax/core';
 import { bearer, json, route } from '../_lib/http.js';
 
 export default route({
-  GET: (req, res) => json(res, 200, getSession(bearer(req))),
-  DELETE: (req, res) => json(res, 200, logout(bearer(req))),
+  GET: async (req, res) => json(res, 200, await getSession(bearer(req))),
+  DELETE: async (req, res) => json(res, 200, await logout(bearer(req))),
 });

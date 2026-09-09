@@ -15,17 +15,17 @@ import { ApiError, addWatch, listWatches, removeWatch } from '@wax/core';
 import { bearer, json, param, readBody, route } from './_lib/http.js';
 
 export default route({
-  GET: (req, res) => json(res, 200, { watches: listWatches(bearer(req)) }),
+  GET: async (req, res) => json(res, 200, { watches: await listWatches(bearer(req)) }),
 
   POST: async (req, res) => {
     const body = await readBody(req);
     if (!body.artist_id) throw new ApiError(400, 'missing_artist', 'Name the artist to watch.');
-    json(res, 201, addWatch(bearer(req), body));
+    json(res, 201, await addWatch(bearer(req), body));
   },
 
-  DELETE: (req, res) => {
+  DELETE: async (req, res) => {
     const id = param(req, 'id');
     if (!id) throw new ApiError(400, 'missing_id', 'Name the watch to remove.');
-    json(res, 200, removeWatch(bearer(req), id));
+    json(res, 200, await removeWatch(bearer(req), id));
   },
 });

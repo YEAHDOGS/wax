@@ -18,6 +18,6 @@ export default route({
   POST: async (req, res) => {
     const { track_id } = await readBody(req);
     if (!track_id) throw new ApiError(400, 'missing_track', 'Name the track that played.');
-    json(res, 200, recordPlay(bearer(req), track_id));
+    json(res, 200, await recordPlay(bearer(req), track_id));
   },
 });

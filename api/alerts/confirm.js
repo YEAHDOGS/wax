@@ -16,7 +16,7 @@ import { confirmAlertSubscription } from '@wax/core';
 import { json, param, route } from '../_lib/http.js';
 
 export default route({
-  GET: (req, res) => {
-    json(res, 200, confirmAlertSubscription(param(req, 'token')));
+  GET: async (req, res) => {
+    json(res, 200, await confirmAlertSubscription(param(req, 'token')));
   },
 });

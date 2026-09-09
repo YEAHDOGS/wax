@@ -19,6 +19,6 @@ export default route({
   POST: async (req, res) => {
     const body = await readBody(req);
     const token = typeof body.token === 'string' && body.token ? body.token : param(req, 'token');
-    json(res, 200, unsubscribeAlertChannel({ ...body, ...(token ? { token } : {}) }));
+    json(res, 200, await unsubscribeAlertChannel({ ...body, ...(token ? { token } : {}) }));
   },
 });

@@ -13,17 +13,17 @@ import { ApiError, addToCrate, listCrate, removeFromCrate } from '@wax/core';
 import { bearer, json, param, readBody, route } from './_lib/http.js';
 
 export default route({
-  GET: (req, res) => json(res, 200, { crate: listCrate(bearer(req)) }),
+  GET: async (req, res) => json(res, 200, { crate: await listCrate(bearer(req)) }),
 
   POST: async (req, res) => {
     const body = await readBody(req);
     if (!body.release_id) throw new ApiError(400, 'missing_release', 'Name the release to file.');
-    json(res, 201, addToCrate(bearer(req), body));
+    json(res, 201, await addToCrate(bearer(req), body));
   },
 
-  DELETE: (req, res) => {
+  DELETE: async (req, res) => {
     const releaseId = param(req, 'release_id');
     if (!releaseId) throw new ApiError(400, 'missing_release', 'Name the release to remove.');
-    json(res, 200, removeFromCrate(bearer(req), releaseId));
+    json(res, 200, await removeFromCrate(bearer(req), releaseId));
   },
 });

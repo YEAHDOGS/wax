@@ -51,7 +51,7 @@ if (cmd === 'alert' && sub === 'dispatch') {
 } else {
   const userId = cmd ?? 'usr_test';
   const { store } = await resolveStore();
-  process.stdout.write(`${renderDashboard(store, userId)}\n`);
+  process.stdout.write(`${await renderDashboard(store, userId)}\n`);
 }
 
 async function runAlertDispatch(flags) {
@@ -125,7 +125,7 @@ async function runAlertDispatch(flags) {
  */
 async function runBillingSweep(flags) {
   const { store } = await resolveStore();
-  const expired = expireTrials({ store });
+  const expired = await expireTrials({ store });
   if (flags.includes('--json')) {
     process.stdout.write(`${JSON.stringify({ expired })}\n`);
   } else {

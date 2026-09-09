@@ -62,7 +62,7 @@ export default route({
     if (!trackId) throw new ApiError(400, 'missing_track', 'Name the track to stream.');
 
     // Resolve against the catalog rather than trusting a URL from the client.
-    const track = listTracks().find((t) => t.id === trackId);
+    const track = (await listTracks()).find((t) => t.id === trackId);
     if (!track) throw new ApiError(404, 'not_found', 'No such track.');
 
     const upstream = new URL(track.audio_url);
