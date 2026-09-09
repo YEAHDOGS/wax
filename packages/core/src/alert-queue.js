@@ -120,6 +120,20 @@ export function createAlertQueue({ maxPerUserPerHour = QUEUE_DEFAULT_MAX_PER_USE
     return ordered();
   }
 
+  /**
+   * Record an already-alerted user+release without enqueuing it — the
+   * hook `restoreQueueSeen` (src/alert-persistence.js) uses to replay the
+   * durable `alerts` rows into the queue after a restart. Uses the same
+   * `queueDedupeKey` as `enqueue`, so keys match by construction; calls
+   * with a null user or release are ignored rather than keyed as garbage.
+   * Idempotent.
+   * @param {{ user_id: ?string, release_id: ?string }} seen
+   */
+  function markSeen({ user_id, release_id } = {}) {
+    if (user_id == null || release_id == null) return;
+    seen.add(queueDedupeKey({ user_id, release_id }));
+  }
+
   function size() {
     return pending.length;
   }
@@ -139,5 +153,5 @@ export function createAlertQueue({ maxPerUserPerHour = QUEUE_DEFAULT_MAX_PER_USE
     };
   }
 
-  return { enqueue, drain, peek, size, queuedForUser, stats };
+  return { enqueue, drain, peek, markSeen, size, queuedForUser, stats };
 }
