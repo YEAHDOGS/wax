@@ -230,6 +230,38 @@
  */
 
 /**
+ * One scan attempt against one merch site — the worker's attempt log
+ * (ALERT-ENGINE-PLAN.md §2). Append-only: attempts, failures, new-item
+ * counts, and the hash verdict that drove the queue.
+ *
+ * @typedef {object} ScanLog
+ * @property {string}    id
+ * @property {string}    source_id
+ * @property {Timestamp} scanned_at
+ * @property {'ok'|'fetch_failed'|'error'} outcome
+ * @property {?number}   status_code      HTTP status when the fetch answered.
+ * @property {boolean}   baseline         First scan: snapshot stored, nothing alerted.
+ * @property {number}    parsed           Raw records the fetch returned.
+ * @property {number}    skipped          Records that could not normalize.
+ * @property {boolean}   hash_changed
+ * @property {number}    added            New products vs the stored snapshot.
+ * @property {number}    removed
+ * @property {number}    unchanged
+ * @property {?string}   error            Failure detail, when outcome is not 'ok'.
+ */
+
+/**
+ * The stored snapshot behind a source's `snapshot_hash`: the normalized
+ * product list the next scan diffs against.
+ *
+ * @typedef {object} ScanSnapshot
+ * @property {string}    source_id
+ * @property {string}    hash
+ * @property {Array<object>} products  Normalized products (jsonb in Postgres).
+ * @property {Timestamp} updated_at
+ */
+
+/**
  * A standing instruction: tell me about this artist.
  *
  * @typedef {object} Watch
@@ -418,4 +450,4 @@
 // This module is documentation, not code. The export exists so that a bundler
 // treats the file as a module and so `import '@wax/core/types'` is legal for
 // its side effect of pulling the typedefs into scope.
-export const TYPES_VERSION = 1;
+export const TYPES_VERSION = 2;

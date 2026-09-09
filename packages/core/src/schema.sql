@@ -216,6 +216,43 @@ CREATE TABLE alerts (
 CREATE INDEX alerts_board_idx ON alerts (user_id, detected_at DESC);
 CREATE INDEX alerts_state_idx ON alerts (user_id, state);
 
+-- ------------------------------------------------------- scan worker --
+
+-- The scan worker's attempt log (ALERT-ENGINE-PLAN.md §2): one row per scan
+-- attempt per source — attempts, failures, new-item counts. The same
+-- transparency pattern as DOGS Remote's attempt log; the dashboard reads
+-- this to show scan health.
+CREATE TABLE scan_logs (
+  id            text        PRIMARY KEY,
+  source_id     text        NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+  scanned_at    timestamptz NOT NULL DEFAULT now(),
+  outcome       text        NOT NULL DEFAULT 'ok'
+                            CHECK (outcome IN ('ok', 'fetch_failed', 'error')),
+  status_code   integer,
+  -- True on a source's first scan: the snapshot was stored, nothing alerted.
+  baseline      boolean     NOT NULL DEFAULT false,
+  parsed        integer     NOT NULL DEFAULT 0,
+  skipped       integer     NOT NULL DEFAULT 0,
+  hash_changed  boolean     NOT NULL DEFAULT false,
+  added         integer     NOT NULL DEFAULT 0,
+  removed       integer     NOT NULL DEFAULT 0,
+  unchanged     integer     NOT NULL DEFAULT 0,
+  error         text
+);
+
+CREATE INDEX scan_logs_source_idx ON scan_logs (source_id, scanned_at DESC);
+
+-- The normalized product list behind each source's `snapshot_hash`. The
+-- hash alone can only say "changed"; the worker needs the previous products
+-- to diff product-by-product and find what is actually new. `products` is
+-- jsonb in Postgres; the row is keyed by source so there is exactly one.
+CREATE TABLE scan_snapshots (
+  source_id   text        PRIMARY KEY REFERENCES sources(id) ON DELETE CASCADE,
+  hash        text        NOT NULL,
+  products    text        NOT NULL DEFAULT '[]',
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
 -- ------------------------------------------------------- crate and pricing --
 
 CREATE TABLE crate_items (
