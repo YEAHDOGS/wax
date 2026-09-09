@@ -19,10 +19,12 @@
  * strip the token from this response: it travels inside the confirmation
  * message only.
  *
- * Rate-limit guard: subscribes must be throttled per recipient (see the
- * note in packages/core/src/subscriptions.js). The counters move to
- * Postgres with the subscriptions table; the in-memory store cannot hold
- * them across instances.
+ * Rate-limit guard: subscribes are throttled per channel+address (5 new
+ * subscribes per rolling hour — `MAX_SUBSCRIBE_ATTEMPTS_PER_WINDOW` in
+ * src/subscriptions.js), with unknown confirm-token probes capped per
+ * token (10/hour). Counters live in the store's `subscribeAttempts`
+ * collection (`subscribe_attempt` in schema.sql), so the in-memory store
+ * holds them today and the Postgres swap inherits them with the table.
  */
 
 import { createResendChannel, createTwilioChannel, subscribeAlertChannel } from '@wax/core';

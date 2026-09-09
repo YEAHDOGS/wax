@@ -278,6 +278,20 @@ CREATE TABLE alert_subscriptions (
 
 CREATE INDEX alert_subscriptions_recipient_idx ON alert_subscriptions (recipient, state);
 
+-- Subscribe/confirm attempt log (src/subscriptions.js rate-limit guard).
+-- One row per attempt; the in-memory store holds these today and the
+-- Postgres swap enforces them with the same sliding-window count:
+-- per-address subscribe throttling plus per-token confirm-attempt caps,
+-- so list-bombing and token probing both have a price.
+CREATE TABLE subscribe_attempt (
+  id   text        PRIMARY KEY,
+  key  text        NOT NULL,  -- channel:address for subscribes, the presented token for confirms
+  kind text        NOT NULL CHECK (kind IN ('subscribe', 'confirm')),
+  at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX subscribe_attempt_key_idx ON subscribe_attempt (kind, key, at DESC);
+
 -- ------------------------------------------------------- scan worker --
 
 -- The scan worker's attempt log (ALERT-ENGINE-PLAN.md §2): one row per scan
