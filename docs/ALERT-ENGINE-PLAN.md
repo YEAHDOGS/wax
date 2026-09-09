@@ -377,6 +377,17 @@ same transparency pattern as DOGS Remote's attempt log.
      /api/alerts/unsubscribe` now accepts `?token=` from the query string
      (body still wins) — that's the actual one-click path, since email
      clients POST the List-Unsubscribe URL with an empty body.
+   - **BUILT (2026-09-09, jack/wax-alert-unsub-wire):** seam wiring for
+     List-Unsubscribe — `resolveSendAdapters` now accepts
+     `email.unsubscribeUrl` (static URL or per-envelope resolver) and
+     `email.baseUrl` (test loopback override) and passes them straight
+     through to `createResendChannel`, so the first live send carries
+     one-click List-Unsubscribe headers instead of shipping bulk email
+     with no unsubscribe path. Pinned by
+     `packages/core/test-send-unsubscribe-wire.mjs` (6 tests: tokenized
+     resolver headers, static passthrough, no-headers regression,
+     malformed-URL refusal before any network, throwing/junk resolvers,
+     keyless-still-disabled regression).
    - **NEXT (unchanged):** the actual live sends still wait on Brando's
      `RESEND_API_KEY`.
    - **BUILT (2026-09-09, jack/wax-list-unsubscribe):** per-address

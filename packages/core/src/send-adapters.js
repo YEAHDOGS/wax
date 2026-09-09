@@ -17,6 +17,10 @@
  *   config with an `enabled` flag and optional live keys, returns either
  *   the fully-wired adapters from `dispatch.js` (when Brando's keys are
  *   present) or the disabled stubs (anything else). Nothing in between.
+ *   `email.unsubscribeUrl` (static URL or per-envelope resolver) flows
+ *   through to the live Resend channel, so live email carries one-click
+ *   List-Unsubscribe headers by default; `email.baseUrl` is the test
+ *   loopback override.
  *
  * All adapters honour the dispatch channel contract (`dispatch.js`):
  * `{ name, kind, send(envelope) => Promise<receipt> }`, enforced by
@@ -189,6 +193,17 @@ export function createDryRunAdapter({ out = process.stdout, name = 'dry-run', ki
  *   present to wire Resend.
  * @param {string} [input.email.apiKey] Live `RESEND_API_KEY`.
  * @param {string} [input.email.from] Verified sender.
+ * @param {string} [input.email.baseUrl] Provider root override (tests aim
+ *   a loopback stub at it). Defaults to the real Resend endpoint.
+ * @param {?(string|(envelope: object) => ?string)} [input.email.unsubscribeUrl]
+ *   List-Unsubscribe target for every live email — static http(s) URL or a
+ *   per-send resolver over the envelope (the resolver form is how the
+ *   per-recipient token in `envelope.unsubscribe_token` lands in the URL;
+ *   see `buildUnsubscribeUrl` in subscriptions.js). Gmail and Outlook
+ *   require working one-click unsubscribe on bulk mail, so the seam
+ *   passes this straight through to `createResendChannel` — a live send
+ *   without it is a spam-compliance incident, not a cosmetic gap.
+ *   Ignored entirely when the email adapter resolves to a disabled stub.
  * @param {object} [input.sms]
  * @param {boolean} [input.sms.enabled] Must be `true` AND both Twilio
  *   credentials present to wire Twilio.
@@ -202,7 +217,12 @@ export function createDryRunAdapter({ out = process.stdout, name = 'dry-run', ki
 export function resolveSendAdapters({ email = {}, sms = {}, dev = false } = {}) {
   const emailAdapter =
     email?.enabled === true && email?.apiKey
-      ? createResendChannel({ apiKey: email.apiKey, from: email.from })
+      ? createResendChannel({
+          apiKey: email.apiKey,
+          from: email.from,
+          ...(email.baseUrl ? { baseUrl: email.baseUrl } : {}),
+          ...(email.unsubscribeUrl != null ? { unsubscribeUrl: email.unsubscribeUrl } : {}),
+        })
       : dev
         ? createConsoleAdapter({ name: 'console-email', kind: 'email' })
         : createDisabledResendAdapter({ from: email?.from });
