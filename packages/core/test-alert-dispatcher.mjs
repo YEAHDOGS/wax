@@ -182,7 +182,7 @@ test('restart replay: dispatched alerts never re-deliver after a reboot', async 
 
   // Restart: fresh queue, seen-set restored from the delivery-log rows.
   const queueB = createAlertQueue({ now });
-  persistence.restoreQueueSeen(queueB);
+  await persistence.restoreQueueSeen(queueB);
   const outcome = queueB.enqueue([makeEvent()]);
   assert.equal(outcome.queued.length, 0, 'already-alerted user+release must not re-queue');
   assert.equal(outcome.dupes.length, 1);

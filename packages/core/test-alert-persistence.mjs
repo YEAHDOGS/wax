@@ -52,7 +52,7 @@ function makePersistence() {
   return { store, persistence: createAlertPersistence(store) };
 }
 
-test('save/load round-trips engine state through the store', () => {
+test('save/load round-trips engine state through the store', async () => {
   const { persistence } = makePersistence();
   const states = {
     [`usr_1${ENGINE_STATE_KEY_SEP}9900210`]: {
@@ -67,24 +67,24 @@ test('save/load round-trips engine state through the store', () => {
       seen_at: '2026-09-09T10:00:00.000Z',
     },
   };
-  const upserted = persistence.savePrevStates(states);
+  const upserted = await persistence.savePrevStates(states);
   assert.equal(upserted, 2);
-  const loaded = persistence.loadPrevStates();
+  const loaded = await persistence.loadPrevStates();
   assert.deepEqual(loaded, states);
 });
 
-test('save is an upsert: second save updates rows, does not duplicate', () => {
+test('save is an upsert: second save updates rows, does not duplicate', async () => {
   const { store, persistence } = makePersistence();
   const key = `usr_1${ENGINE_STATE_KEY_SEP}9900210`;
-  persistence.savePrevStates({ [key]: { price_cents: 4500, in_stock: true, seen_at: 'x' } });
-  persistence.savePrevStates({ [key]: { price_cents: 3000, in_stock: true, seen_at: 'y' } });
+  await persistence.savePrevStates({ [key]: { price_cents: 4500, in_stock: true, seen_at: 'x' } });
+  await persistence.savePrevStates({ [key]: { price_cents: 3000, in_stock: true, seen_at: 'y' } });
   assert.equal(store.engineStates.count(), 1);
-  assert.equal(persistence.loadPrevStates()[key].price_cents, 3000);
+  assert.equal((await persistence.loadPrevStates())[key].price_cents, 3000);
 });
 
-test('malformed keys are skipped, never persisted', () => {
+test('malformed keys are skipped, never persisted', async () => {
   const { store, persistence } = makePersistence();
-  const upserted = persistence.savePrevStates({
+  const upserted = await persistence.savePrevStates({
     'no-separator-here': { price_cents: 1, in_stock: true, seen_at: 'x' },
     [`${ENGINE_STATE_KEY_SEP}`]: { price_cents: 1, in_stock: true, seen_at: 'x' },
     [`usr_1${ENGINE_STATE_KEY_SEP}ok`]: { price_cents: 1, in_stock: true, seen_at: 'x' },
@@ -95,13 +95,13 @@ test('malformed keys are skipped, never persisted', () => {
   assert.deepEqual(splitEngineKey('no-separator-here'), { user_id: 'no-separator-here', state_key: '' });
 });
 
-test('restoreQueueSeen replays alerts rows so re-enqueue reports dupes', () => {
+test('restoreQueueSeen replays alerts rows so re-enqueue reports dupes', async () => {
   const { store, persistence } = makePersistence();
   store.alerts.insert({ user_id: 'usr_1', release_id: 9900210 });
   store.alerts.insert({ user_id: 'usr_1', release_id: 15236781 });
   store.alerts.insert({ user_id: 'usr_2', release_id: null }); // skipped, not garbage-keyed
   const queue = createAlertQueue();
-  const restored = persistence.restoreQueueSeen(queue);
+  const restored = await persistence.restoreQueueSeen(queue);
   assert.equal(restored, 2);
   const { queued, dupes } = queue.enqueue([
     { kind: 'new', user_id: 'usr_1', release_id: 9900210 },
@@ -111,16 +111,16 @@ test('restoreQueueSeen replays alerts rows so re-enqueue reports dupes', () => {
   assert.equal(dupes.length, 1, 'the replayed alert must come back as a dupe');
 });
 
-test('restoreQueueSeen requires a real queue', () => {
+test('restoreQueueSeen requires a real queue', async () => {
   const { persistence } = makePersistence();
-  assert.throws(() => persistence.restoreQueueSeen(null), TypeError);
-  assert.throws(() => persistence.restoreQueueSeen({}), TypeError);
+  await assert.rejects(() => persistence.restoreQueueSeen(null), TypeError);
+  await assert.rejects(() => persistence.restoreQueueSeen({}), TypeError);
 });
 
-test('recordAlert maps engine kinds to board kinds and writes durable rows', () => {
+test('recordAlert maps engine kinds to board kinds and writes durable rows', async () => {
   const { store, persistence } = makePersistence();
   assert.deepEqual(ENGINE_TO_ALERT_KIND, { new: 'drop', price_drop: 'price', restock: 'restock' });
-  const row = persistence.recordAlert(
+  const row = await persistence.recordAlert(
     {
       kind: 'price_drop',
       user_id: 'usr_1',
@@ -141,7 +141,7 @@ test('recordAlert maps engine kinds to board kinds and writes durable rows', () 
   assert.deepEqual(row.channels, ['email']);
   assert.equal(store.alerts.count(), 1);
   // unknown engine kind falls back to 'drop', never throws
-  const fallback = persistence.recordAlert({ kind: 'weird', user_id: 'u', release_id: 'r' });
+  const fallback = await persistence.recordAlert({ kind: 'weird', user_id: 'u', release_id: 'r' });
   assert.equal(fallback.kind, 'drop');
 });
 
@@ -161,12 +161,12 @@ test('restart contract: scheduler B resumes from scheduler A without re-alerting
   });
   const first = await schedulerA.tick();
   assert.ok(first.queued.length > 0, 'first tick should queue alerts');
-  for (const event of first.queued) persistence.recordAlert(event, { channels: ['email'], now });
-  persistence.restoreQueueSeen(queueA);
+  for (const event of first.queued) await persistence.recordAlert(event, { channels: ['email'], now });
+  await persistence.restoreQueueSeen(queueA);
 
   // Instance B (a "restart"): fresh queue + scheduler, same store.
   const queueB = createAlertQueue({ now });
-  persistence.restoreQueueSeen(queueB);
+  await persistence.restoreQueueSeen(queueB);
   const schedulerB = createAlertScheduler({
     getReleases: () => RELEASES,
     getWantlist: () => WANTS,
@@ -199,7 +199,7 @@ test('restart contract holds for price-drop transitions too', async () => {
   // Restart, then the batch changes: the price drop must still fire exactly once.
   const cheaper = base.map((r) => (r.id === 9900210 ? { ...r, price_cents: 3000 } : r));
   const queueB = createAlertQueue({ now });
-  persistence.restoreQueueSeen(queueB);
+  await persistence.restoreQueueSeen(queueB);
   const schedulerB = createAlertScheduler({
     getReleases: () => cheaper,
     getWantlist: () => WANTS,

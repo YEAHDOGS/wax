@@ -56,9 +56,9 @@ const queueKey = (item) => `${item?.user_id ?? ''}\u001f${item?.alert_id ?? ''}`
  * @param {object} input.store A `@wax/core` store.
  * @param {Array<object>} [input.alerts] Persisted alert rows from `dispatchScanAlerts`.
  * @param {number} [input.nowMs]
- * @returns {{ queued: number, skipped: number }}
+ * @returns {Promise<{ queued: number, skipped: number }>}
  */
-export function queueHeldAlerts({ store, alerts = [], nowMs = Date.now() }) {
+export async function queueHeldAlerts({ store, alerts = [], nowMs = Date.now() }) {
   let queued = 0;
   let skipped = 0;
   const isoNow = new Date(nowMs).toISOString();
@@ -69,12 +69,12 @@ export function queueHeldAlerts({ store, alerts = [], nowMs = Date.now() }) {
       skipped += 1;
       continue;
     }
-    if (store.digestQueue.find((q) => queueKey(q) === queueKey({ user_id: alert?.user_id, alert_id: alert?.id }))) {
+    if (await store.digestQueue.find((q) => queueKey(q) === queueKey({ user_id: alert?.user_id, alert_id: alert?.id }))) {
       skipped += 1;
       continue;
     }
     const reasons = [...new Set(held.map((r) => String(r.reason ?? 'held for digest')))].slice(0, 3);
-    store.digestQueue.insert({
+    await store.digestQueue.insert({
       id: newId('dgq'),
       user_id: alert.user_id,
       alert_id: alert.id,
@@ -100,9 +100,9 @@ export function queueHeldAlerts({ store, alerts = [], nowMs = Date.now() }) {
  * @param {object} store
  * @param {string} userId
  */
-function lastDigestAt(store, userId) {
+async function lastDigestAt(store, userId) {
   let latest = 0;
-  for (const row of store.scanLogs.filter((l) => l?.outcome === 'digest' && l?.user_id === userId)) {
+  for (const row of await store.scanLogs.filter((l) => l?.outcome === 'digest' && l?.user_id === userId)) {
     const t = Date.parse(row.scanned_at ?? '');
     if (Number.isFinite(t) && t > latest) latest = t;
   }
@@ -136,19 +136,19 @@ function lastDigestAt(store, userId) {
  * @returns {Promise<{ expired: number, users: Array<{ user_id: string, sent: boolean, items: number, reason: string }> }>}
  */
 export async function flushDigestQueue({ store, channels = {}, nowMs = Date.now() }) {
-  const expired = store.digestQueue.remove((q) => Date.parse(q?.queued_at ?? '') <= nowMs - DIGEST_MAX_AGE_MS);
+  const expired = await store.digestQueue.remove((q) => Date.parse(q?.queued_at ?? '') <= nowMs - DIGEST_MAX_AGE_MS);
 
   const byUser = new Map();
-  for (const q of store.digestQueue.all()) {
+  for (const q of await store.digestQueue.all()) {
     if (!byUser.has(q.user_id)) byUser.set(q.user_id, []);
     byUser.get(q.user_id).push(q);
   }
 
   const users = [];
   for (const [userId, rows] of byUser) {
-    const user = store.users.find((u) => u.id === userId);
+    const user = await store.users.find((u) => u.id === userId);
     if (!user) {
-      store.digestQueue.remove((q) => q.user_id === userId);
+      await store.digestQueue.remove((q) => q.user_id === userId);
       users.push({ user_id: userId, sent: false, items: rows.length, reason: 'user gone — queue dropped' });
       continue;
     }
@@ -160,7 +160,7 @@ export async function flushDigestQueue({ store, channels = {}, nowMs = Date.now(
     let held = null;
     if (!shouldFlushDigest({ user, nowMs })) {
       held = `quiet hours (${user.quiet_hours_start}–${user.quiet_hours_end} UTC) — digest held until the window ends`;
-    } else if (lastDigestAt(store, userId) > nowMs - DIGEST_MIN_INTERVAL_MS) {
+    } else if ((await lastDigestAt(store, userId)) > nowMs - DIGEST_MIN_INTERVAL_MS) {
       held = 'digest already sent within the last hour — held for the next window';
     } else if (!emailChannel) {
       held = "no email channel configured — held, nothing lost";
@@ -204,8 +204,8 @@ export async function flushDigestQueue({ store, channels = {}, nowMs = Date.now(
 
     if (receipt?.ok) {
       const sentIds = new Set(batch.map((q) => q.id));
-      store.digestQueue.remove((q) => sentIds.has(q.id));
-      recordScanLog(store, {
+      await store.digestQueue.remove((q) => sentIds.has(q.id));
+      await recordScanLog(store, {
         source_id: `digest:${userId}`,
         user_id: userId,
         scanned_at: new Date(nowMs).toISOString(),
@@ -218,7 +218,7 @@ export async function flushDigestQueue({ store, channels = {}, nowMs = Date.now(
       });
       users.push({ user_id: userId, sent: true, items: count, reason: `digest sent to ${to} (${count} items)` });
     } else {
-      recordScanLog(store, {
+      await recordScanLog(store, {
         source_id: `digest:${userId}`,
         user_id: userId,
         scanned_at: new Date(nowMs).toISOString(),

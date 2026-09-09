@@ -113,12 +113,12 @@ function fakeChannel(overrides = {}) {
  * queueHeldAlerts
  * ------------------------------------------------------------------ */
 
-test('queueHeldAlerts queues only alerts with held-back deliveries', () => {
+test('queueHeldAlerts queues only alerts with held-back deliveries', async () => {
   const store = createStore();
   store.users.insert(user());
   const green = { ...heldAlert({ id: 'alr_green' }), dispatches: [{ ok: true, channel: 'email', sentAt: '2026-01-02T01:00:00Z' }] };
 
-  const { queued, skipped } = queueHeldAlerts({ store, alerts: [heldAlert(), green], nowMs: AWAKE_NOW });
+  const { queued, skipped } = await queueHeldAlerts({ store, alerts: [heldAlert(), green], nowMs: AWAKE_NOW });
 
   assert.equal(queued, 1);
   assert.equal(skipped, 1);
@@ -130,20 +130,20 @@ test('queueHeldAlerts queues only alerts with held-back deliveries', () => {
   assert.ok(rows[0].reason.includes('sms is a $10/mo series feature'));
 });
 
-test('queueHeldAlerts is idempotent — same pass queued twice queues once', () => {
+test('queueHeldAlerts is idempotent — same pass queued twice queues once', async () => {
   const store = createStore();
   store.users.insert(user());
   const alerts = [heldAlert()];
 
-  assert.equal(queueHeldAlerts({ store, alerts, nowMs: AWAKE_NOW }).queued, 1);
-  assert.equal(queueHeldAlerts({ store, alerts, nowMs: AWAKE_NOW }).queued, 0);
+  assert.equal((await queueHeldAlerts({ store, alerts, nowMs: AWAKE_NOW })).queued, 1);
+  assert.equal((await queueHeldAlerts({ store, alerts, nowMs: AWAKE_NOW })).queued, 0);
   assert.equal(store.digestQueue.count(), 1);
 });
 
-test('queueHeldAlerts ignores alerts with no dispatch receipts at all', () => {
+test('queueHeldAlerts ignores alerts with no dispatch receipts at all', async () => {
   const store = createStore();
   store.users.insert(user());
-  const { queued } = queueHeldAlerts({ store, alerts: [{ ...heldAlert({ id: 'alr_bare' }), dispatches: undefined }], nowMs: AWAKE_NOW });
+  const { queued } = await queueHeldAlerts({ store, alerts: [{ ...heldAlert({ id: 'alr_bare' }), dispatches: undefined }], nowMs: AWAKE_NOW });
   assert.equal(queued, 0);
   assert.equal(store.digestQueue.count(), 0);
 });
@@ -155,7 +155,7 @@ test('queueHeldAlerts ignores alerts with no dispatch receipts at all', () => {
 test('flushDigestQueue holds the digest during quiet hours', async () => {
   const store = createStore();
   store.users.insert(user());
-  queueHeldAlerts({ store, alerts: [heldAlert()], nowMs: QUIET_NOW });
+  await queueHeldAlerts({ store, alerts: [heldAlert()], nowMs: QUIET_NOW });
   const email = fakeChannel();
 
   const { users } = await flushDigestQueue({ store, channels: { email }, nowMs: QUIET_NOW });
@@ -170,7 +170,7 @@ test('flushDigestQueue holds the digest during quiet hours', async () => {
 test('flushDigestQueue sends one digest email after quiet hours end', async () => {
   const store = createStore();
   store.users.insert(user());
-  queueHeldAlerts({ store, alerts: [heldAlert(), heldAlert({ id: 'alr_held2', title: 'Vaudeville Villain' })], nowMs: QUIET_NOW });
+  await queueHeldAlerts({ store, alerts: [heldAlert(), heldAlert({ id: 'alr_held2', title: 'Vaudeville Villain' })], nowMs: QUIET_NOW });
   const email = fakeChannel();
 
   const { users } = await flushDigestQueue({ store, channels: { email }, nowMs: AWAKE_NOW });
@@ -196,11 +196,11 @@ test('flushDigestQueue refuses a second digest within the hour', async () => {
   store.users.insert(user());
   const email = fakeChannel();
 
-  queueHeldAlerts({ store, alerts: [heldAlert()], nowMs: AWAKE_NOW });
+  await queueHeldAlerts({ store, alerts: [heldAlert()], nowMs: AWAKE_NOW });
   const first = await flushDigestQueue({ store, channels: { email }, nowMs: AWAKE_NOW });
   assert.equal(first.users[0].sent, true);
 
-  queueHeldAlerts({ store, alerts: [heldAlert({ id: 'alr_held2' })], nowMs: AWAKE_NOW + 30 * 60 * 1000 });
+  await queueHeldAlerts({ store, alerts: [heldAlert({ id: 'alr_held2' })], nowMs: AWAKE_NOW + 30 * 60 * 1000 });
   const second = await flushDigestQueue({ store, channels: { email }, nowMs: AWAKE_NOW + 30 * 60 * 1000 });
   assert.equal(second.users[0].sent, false);
   assert.ok(second.users[0].reason.includes('within the last hour'));
@@ -210,7 +210,7 @@ test('flushDigestQueue refuses a second digest within the hour', async () => {
 test('flushDigestQueue holds the digest when the email is unverified', async () => {
   const store = createStore();
   store.users.insert(user({ email_verified: false }));
-  queueHeldAlerts({ store, alerts: [heldAlert()], nowMs: AWAKE_NOW });
+  await queueHeldAlerts({ store, alerts: [heldAlert()], nowMs: AWAKE_NOW });
   const email = fakeChannel();
 
   const { users } = await flushDigestQueue({ store, channels: { email }, nowMs: AWAKE_NOW });
@@ -249,7 +249,7 @@ test('flushDigestQueue expires rows older than a week', async () => {
 test('flushDigestQueue keeps the queue when the channel throws', async () => {
   const store = createStore();
   store.users.insert(user());
-  queueHeldAlerts({ store, alerts: [heldAlert()], nowMs: AWAKE_NOW });
+  await queueHeldAlerts({ store, alerts: [heldAlert()], nowMs: AWAKE_NOW });
   const email = fakeChannel({
     async send() {
       throw new Error('provider down');
@@ -267,7 +267,7 @@ test('flushDigestQueue caps one digest at DIGEST_MAX_ITEMS, overflow stays queue
   const store = createStore();
   store.users.insert(user());
   for (let i = 0; i < DIGEST_MAX_ITEMS + 3; i += 1) {
-    queueHeldAlerts({ store, alerts: [heldAlert({ id: `alr_${i}`, title: `Drop ${i}` })], nowMs: AWAKE_NOW });
+    await queueHeldAlerts({ store, alerts: [heldAlert({ id: `alr_${i}`, title: `Drop ${i}` })], nowMs: AWAKE_NOW });
   }
   const email = fakeChannel();
 

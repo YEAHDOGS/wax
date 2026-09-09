@@ -253,7 +253,7 @@ export function createAlertDispatcher({
     const delivered = receipt.ok === true;
     if (delivered) {
       queue.markSeen({ user_id: event?.user_id, release_id: event?.release_id });
-      if (persistence) persistence.recordAlert(event, { channels: [receipt.channel ?? adapter.name], now });
+      if (persistence) await persistence.recordAlert(event, { channels: [receipt.channel ?? adapter.name], now });
       deliveredCount += 1;
     }
     return { event, receipt, delivered, adapter: adapter.name, to };

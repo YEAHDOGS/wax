@@ -669,7 +669,7 @@ export async function dispatchScanAlerts({ store, alerts = [], channels = {}, fa
   const allReceipts = [];
 
   for (const alert of alerts) {
-    const user = store.users.find((u) => u.id === alert?.user_id);
+    const user = await store.users.find((u) => u.id === alert?.user_id);
     const recipient = {
       email: user?.email_verified === true ? (user.email ?? null) : null,
       sms: user?.phone_verified === true ? (user.phone ?? null) : null,
@@ -680,7 +680,7 @@ export async function dispatchScanAlerts({ store, alerts = [], channels = {}, fa
     allReceipts.push(...receipts);
 
     const sentChannels = [...new Set(receipts.filter((r) => r.ok && !r.skipped && !String(r.channel ?? '').startsWith('fanout:')).map((r) => r.channel))];
-    const row = store.alerts.insert({
+    const row = await store.alerts.insert({
       id: newId('alr'),
       ...alertWithRecipient,
       dispatched_at: new Date(nowMs).toISOString(),
@@ -690,7 +690,7 @@ export async function dispatchScanAlerts({ store, alerts = [], channels = {}, fa
 
     // Receipts land in the scan log too — every send is inspectable
     // next to the scan attempts that found the drop.
-    recordScanLog(store, {
+    await recordScanLog(store, {
       source_id: `alert:${row.id}`,
       outcome: 'dispatch',
       alert_id: row.id,

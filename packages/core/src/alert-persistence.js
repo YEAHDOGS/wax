@@ -18,6 +18,11 @@
  * in-memory store today and against Postgres the day `store.js` is swapped,
  * with no change here. That swap is exactly the seam `store.js` documents.
  *
+ * Async-store contract: every store method is awaited, so a store whose
+ * methods return promises (Postgres) and one whose methods return values
+ * (the in-memory store) behave identically through this module. All four
+ * public functions return promises.
+ *
  * Failure policy: a failed save is thrown, not swallowed. Silently losing
  * engine state means re-alerting every user on the next tick — loud is
  * cheaper than that flood.
@@ -73,11 +78,11 @@ export function createAlertPersistence(store) {
   /**
    * Read the durable `engine_state` rows back into the `prevStates` map
    * shape `runEngine` consumes.
-   * @returns {Record<string, object>}
+   * @returns {Promise<Record<string, object>>}
    */
-  function loadPrevStates() {
+  async function loadPrevStates() {
     const out = {};
-    for (const row of store.engineStates.all()) {
+    for (const row of await store.engineStates.all()) {
       if (row?.user_id == null || row?.state_key == null || row?.state == null) continue;
       out[prevStateKey(row.user_id, { id: row.state_key })] = row.state;
     }
@@ -89,19 +94,19 @@ export function createAlertPersistence(store) {
    * cannot be split into a user and a release key are skipped — persisting
    * garbage keys would corrupt the restart contract.
    * @param {Record<string, object>} prevStates
-   * @returns {number} Rows upserted.
+   * @returns {Promise<number>} Rows upserted.
    */
-  function savePrevStates(prevStates) {
+  async function savePrevStates(prevStates) {
     let upserted = 0;
     const at = new Date().toISOString();
     for (const [compositeKey, state] of Object.entries(prevStates ?? {})) {
       const { user_id, state_key } = splitEngineKey(compositeKey);
       if (!user_id || !state_key || state == null || typeof state !== 'object') continue;
       const match = (r) => r.user_id === user_id && r.state_key === state_key;
-      if (store.engineStates.find(match)) {
-        store.engineStates.update(match, { state, updated_at: at });
+      if (await store.engineStates.find(match)) {
+        await store.engineStates.update(match, { state, updated_at: at });
       } else {
-        store.engineStates.insert({ user_id, state_key, state, updated_at: at });
+        await store.engineStates.insert({ user_id, state_key, state, updated_at: at });
       }
       upserted += 1;
     }
@@ -111,14 +116,14 @@ export function createAlertPersistence(store) {
   /**
    * Replay every dispatched `alerts` row into the queue's seen-set.
    * @param {object} queue A `createAlertQueue` queue.
-   * @returns {number} Rows replayed.
+   * @returns {Promise<number>} Rows replayed.
    */
-  function restoreQueueSeen(queue) {
+  async function restoreQueueSeen(queue) {
     if (!queue || typeof queue.markSeen !== 'function') {
       throw new TypeError('restoreQueueSeen needs an alert queue with markSeen');
     }
     let restored = 0;
-    for (const row of store.alerts.all()) {
+    for (const row of await store.alerts.all()) {
       if (row?.user_id == null || row?.release_id == null) continue;
       queue.markSeen({ user_id: row.user_id, release_id: row.release_id });
       restored += 1;
@@ -135,9 +140,9 @@ export function createAlertPersistence(store) {
    * @param {object} [input]
    * @param {Array<string>} [input.channels] Where the message went.
    * @param {() => number} [input.now] Clock.
-   * @returns {object} The inserted alert row, cloned.
+   * @returns {Promise<object>} The inserted alert row, cloned.
    */
-  function recordAlert(event, { channels = [], now = () => Date.now() } = {}) {
+  async function recordAlert(event, { channels = [], now = () => Date.now() } = {}) {
     const at = new Date(now()).toISOString();
     return store.alerts.insert({
       id: newId('alr'),

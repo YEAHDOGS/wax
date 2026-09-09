@@ -44,13 +44,15 @@ import { runEngine } from './alert-engine.js';
  * @param {Record<string, object>} [input.prevStates] Seed prior state
  *   (from a previous run / Postgres later); the scheduler owns and
  *   mutates the returned copy. Ignored when `persistence` is provided —
- *   the durable store wins.
+ *   the durable store wins. When `persistence` is present the durable
+ *   rows are loaded lazily on the first tick (not in the constructor —
+ *   `loadPrevStates` is async because the Postgres store is).
  * @param {object} [input.persistence] A `createAlertPersistence`
  *   persistence object. When present, the scheduler loads `prevStates`
  *   from the store before the first tick and upserts them after every
  *   tick, so a restart never re-fires known releases. A failed save is
  *   thrown, not swallowed: silently losing engine state means re-alerting
- *   every user on the next tick. Call `persistence.restoreQueueSeen(queue)`
+ *   every user on the next tick. Call `await persistence.restoreQueueSeen(queue)`
  *   before constructing the scheduler to replay dispatched alerts too.
  * @param {(report: object) => void} [input.onTick] Called after each
  *   tick with the tick report.
@@ -82,7 +84,12 @@ export function createAlertScheduler({
     throw new TypeError('alert scheduler persistence needs loadPrevStates/savePrevStates functions');
   }
 
-  let states = persistence ? persistence.loadPrevStates() : { ...prevStates };
+  let states = { ...prevStates };
+  // The durable store wins over the seeded states — but only when it can
+  // be read. `loadPrevStates` is async (Postgres), and the constructor is
+  // sync, so the durable load happens lazily on the first tick, not here.
+  // When `persistence` is absent the scheduler keeps the seeded states.
+  let statesLoaded = persistence == null;
   let timer = null;
   let tickCount = 0;
 
@@ -93,6 +100,10 @@ export function createAlertScheduler({
    * @returns {Promise<{ tick: number, at: string, events: Array<object>, queued: Array<object>, dupes: Array<object>, capped: Array<object> }>}
    */
   async function tick() {
+    if (!statesLoaded) {
+      states = await persistence.loadPrevStates();
+      statesLoaded = true;
+    }
     const tickMs = now();
     const releases = (await getReleases()) ?? [];
     const wantlist = (await getWantlist()) ?? [];

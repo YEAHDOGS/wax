@@ -234,7 +234,7 @@ test('runAlertCloseout: re-feeding the same items is a no-op, not a duplicate', 
 
 /* ------------------------------------------------------------------ * filterAlreadyAlerted: failed sends are retryable, not swallowed. * ------------------------------------------------------------------ */
 
-test('filterAlreadyAlerted: a failed send may retry; a sent one never doubles', () => {
+test('filterAlreadyAlerted: a failed send may retry; a sent one never doubles', async () => {
   const store = createStore(makeData());
   const item = (title) => ({ user_id: 'usr_1', artist_name: 'Miles Davis', title });
 
@@ -247,7 +247,7 @@ test('filterAlreadyAlerted: a failed send may retry; a sent one never doubles', 
     dispatched_at: new Date(AWAKE_NOW).toISOString(), channels: [], dispatches: [{ ok: false }],
   });
 
-  const { fresh, dedupeDropped } = filterAlreadyAlerted(store, [item('Sent LP'), item('Failed LP'), item('New LP')]);
+  const { fresh, dedupeDropped } = await filterAlreadyAlerted(store, [item('Sent LP'), item('Failed LP'), item('New LP')]);
   assert.deepEqual(fresh.map((a) => a.title), ['Failed LP', 'New LP'], 'failed send retries, sent one drops');
   assert.equal(dedupeDropped, 1);
 });
