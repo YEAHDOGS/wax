@@ -194,12 +194,34 @@ same transparency pattern as DOGS Remote's attempt log.
      and `packages/core/test-store-resolve.mjs` (4 tests: memory default,
      Postgres boot with an injected fake driver, loud driver failures).
      Full core suite: 328/328 green.
+   - **BUILT (2026-09-09, jack/wax-api-await):** the await-pass for the
+     HTTP/API layer — every handler in `handlers.js` (auth, catalog,
+     alerts, crate, watches, profiles, playback, bootstrap),
+     `subscriptions.js`, `tracking.js`, `billing.js`, the HTML renderers
+     (`renderAlertHistory`, `renderAlertDetail`, `renderDashboard`), the
+     serverless routes (`api/*`, incl. `api/stream.js`), `bin/wax`
+     (`status`, trial sweep), and the app's local client (`apps/app/src/
+     data/client.js` — `local()` now awaits the handler promise so
+     `ApiError`s still normalize to `ClientError`, and the
+     `alerts()`/`crate()`/`watches()`/`tracks()` aggregators await each
+     property instead of returning Promises inside the object).
+     Pinned by `packages/core/test-async-api-surface.mjs` (5 tests: an
+     `asAsyncStore` shim proving the full API scenario — auth, catalog,
+     watches, alerts, history renderers, subscriptions, tracking,
+     billing, dashboard, bootstrap, sign-out — behaves identically
+     against a promise-returning store, free-tier gate pins, and a
+     no-Promise-leak walk of the scenario output; the first runs caught
+     a real 4-arg `catchAlert` call-order slip in the test itself, and
+     the surface sweep caught two real missed awaits in `api/tracks.js`
+     and the app client aggregators). Full core suite: 333/333 green
+     (29 files, run individually).
    - **NEXT:** the `pg` install (Brando's call — default-deny means the
-     machine never installs it unprompted), then the same mechanical await
-     pass for the HTTP/API layer (`handlers.js`, `subscriptions.js`,
-     `tracking.js`, `billing.js`, `api/*`) so the serverless routes can
-     run on Postgres too. The engine cron path is done; the API path is
-     the remaining surface.
+     machine never installs it unprompted), then the Postgres boot smoke
+     test: `resolveStore()` with a real `DATABASE_URL` against a scratch
+     database, running `test-async-store-pipeline` and
+     `test-async-api-surface` semantics on top. The engine cron path and
+     the API path are both done; the remaining surface is the actual
+     driver and hosting.
    - **BUILT (2026-09-09, jack/wax-alert-engine):** tick scheduler —
      `packages/core/src/alert-scheduler.js` (`createAlertScheduler`)
      hooks `runEngine` into the wantlist batch path: each tick pulls a
