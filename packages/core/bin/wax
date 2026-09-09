@@ -7,6 +7,10 @@
  *     → `wax status`: the alert engine's watchlist view, from the terminal.
  *   node packages/core/bin/wax alert dispatch [--dry-run] [--live] [--limit N]
  *     → drain the alert queue and deliver through the dispatch stage.
+ *   node packages/core/bin/wax alert drop-pass [--dry-run] [--live]
+ *     → one tick of the board-path drop cron (the per-minute cron's entry
+ *       point): boot the cooldown, load the board, run the drop scheduler
+ *       pass, deliver through the chosen boundary.
  *   node packages/core/bin/wax billing sweep [--json]
  *     → sweep expired trials back to `free`. Run on a schedule (hourly is
  *       plenty); idempotent. `--json` prints a machine-readable summary.
@@ -35,6 +39,8 @@ import {
   createAlertScheduler,
   createAlertPersistence,
   createAlertDispatcher,
+  createDropCron,
+  createDryRunAdapter,
   resolveSendAdapters,
   expireTrials,
 } from '../src/index.js';
@@ -46,6 +52,8 @@ const [cmd, sub, ...rest] = process.argv.slice(2);
 
 if (cmd === 'alert' && sub === 'dispatch') {
   await runAlertDispatch(rest);
+} else if (cmd === 'alert' && sub === 'drop-pass') {
+  await runDropPass(rest);
 } else if (cmd === 'billing' && sub === 'sweep') {
   await runBillingSweep(rest);
 } else {
@@ -107,6 +115,86 @@ async function runAlertDispatch(flags) {
   if (rows.length > 0) {
     process.stdout.write('  delivery log:\n');
     for (const r of rows) {
+      process.stdout.write(
+        `    ${r.user_id} — ${r.release_id} (${r.kind}) via ${(r.channels ?? []).join(', ') || 'none'} at ${r.dispatched_at}\n`,
+      );
+    }
+  }
+}
+
+/**
+ * `wax alert drop-pass [--dry-run] [--live]` — the per-minute cron's entry
+ * point for the board-path drop alerts (ALERT-ENGINE-PLAN.md §3).
+ *
+ * One tick: `createDropCron({ store, persistence, dispatch })` boots the
+ * cooldown from durable `alerts` rows, loads the board (tracked releases +
+ * watch rules, artist-joined), runs the drop scheduler's `runPass`, and
+ * records every delivered alert durably through
+ * `persistence.recordAlert` — the same rows the next boot replays, so a
+ * delivered alert can never re-fire after a restart. Resolves its store at
+ * boot via `resolveStore()` (DATABASE_URL → Postgres, else the seeded demo
+ * store). No network, no credentials — the store and the DISPATCH boundary
+ * are the only seams.
+ *
+ * Dispatch mode defaults to DRY-RUN (`createDryRunAdapter`): it prints
+ * exactly what would be sent and records dry-run delivery-log rows —
+ * nothing leaves the machine. `--live` resolves the real send adapters
+ * instead — with no live keys those are the NOT-WIRED stubs, which refuse
+ * loudly per alert (each lands in `failed` with the stub's error printed,
+ * and is retried on the next pass); nothing real can ever send until
+ * Brando supplies keys. Like `alert dispatch`, a run is safe to repeat.
+ */
+async function runDropPass(flags) {
+  const live = flags.includes('--live');
+  const dryRun = flags.includes('--dry-run') || !live;
+
+  const { store, backend } = await resolveStore();
+  const persistence = createAlertPersistence(store);
+
+  const dry = dryRun ? createDryRunAdapter({ out: process.stdout }) : null;
+  const adapters = live ? resolveSendAdapters({ dev: false }) : null;
+
+  const describe = (alert) => {
+    const price = Number.isFinite(alert?.price_cents)
+      ? ` — $${(alert.price_cents / 100).toFixed(2)}`
+      : '';
+    const link = alert?.listing_url ? ` — ${alert.listing_url}` : '';
+    return `New drop: ${alert?.artist_name ?? '(unknown artist)'} — ${alert?.title ?? '(untitled)'}${price}${link}`;
+  };
+
+  const dispatch = async (alert) => {
+    const envelope = { to: alert?.user_id, channel: 'email', message: describe(alert), nowMs: Date.now() };
+    if (dryRun) return dry.send(envelope);
+    const receipt = await adapters.email.send(envelope);
+    if (receipt?.ok !== true) {
+      // The NOT-WIRED stubs are loud on purpose: a refused send must be
+      // visible in the cron log, never a quiet no-op.
+      process.stdout.write(`[wax] drop-pass LIVE refused: ${receipt?.error ?? 'refused'}\n`);
+    }
+    return receipt;
+  };
+
+  const cron = createDropCron({ store, persistence, dispatch });
+  const mode = dryRun ? 'dry-run (nothing is sent)' : 'LIVE (NOT-WIRED stubs without keys)';
+  process.stdout.write(`[wax] alert drop-pass — ${mode} — store: ${backend}\n`);
+  const report = await cron.runDropPass();
+
+  process.stdout.write(`  boot: ok, cooldown keys restored: ${report.restored}\n`);
+  process.stdout.write(
+    `  board: ${report.board.releases.length} releases, ${report.board.rules.length} rules, ${report.board.skipped.length} skipped\n`,
+  );
+  process.stdout.write(
+    `  due: ${report.due.length}, suppressed: ${report.suppressed.length}, delivered: ${report.delivered.length}, failed: ${report.failed.length}, recorded: ${report.recorded.length}\n`,
+  );
+  for (const s of report.board.skipped) {
+    process.stdout.write(`  skipped: ${s.reason}\n`);
+  }
+  for (const f of report.failed) {
+    process.stdout.write(`    x ${f.alert?.user_id} / ${f.alert?.release_id}: ${f.reason}\n`);
+  }
+  if (report.recorded.length > 0) {
+    process.stdout.write('  delivery log:\n');
+    for (const r of report.recorded) {
       process.stdout.write(
         `    ${r.user_id} — ${r.release_id} (${r.kind}) via ${(r.channels ?? []).join(', ') || 'none'} at ${r.dispatched_at}\n`,
       );

@@ -136,10 +136,21 @@ same transparency pattern as DOGS Remote's attempt log.
     join, orphan-watch reporting, end-to-end deliver + durable row,
     restart recipe, failure retry, missing-boundary refusal, price
     gating). Full core suite: 352/352 green (31 files).
-  - **NEXT:** hang `runDropPass` in the per-minute cron worker
-    (a `wax alert drop-pass [--dry-run] [--live]` CLI entry mirroring
-    `alert dispatch`), so the tick runs on a schedule instead of only
-    in tests.
+  - **BUILT (2026-09-09, jack/wax-drop-pass):** the per-minute cron's entry
+    point — `wax alert drop-pass [--dry-run] [--live]` in
+    `packages/core/bin/wax` hangs `createDropCron`'s `runDropPass` off the
+    board path, mirroring `alert dispatch`. Dry-run (default) prints exactly
+    what would be sent via `createDryRunAdapter` and records dry-run
+    delivery-log rows; `--live` resolves `resolveSendAdapters({ dev: false
+    })` — keyless, those are the NOT-WIRED stubs, so every due alert is
+    refused loudly (the stub's error is printed per refusal, nothing is
+    recorded, nothing real can send) and retried on the next pass. The
+    banner prints before the pass so cron logs read top-down; every
+    delivered alert is recorded durably, so a restart never re-alerts.
+    Pinned by `packages/core/test-alert-drop-pass-cli.mjs` (5 tests:
+    dry-run report shape + dry-run default, live loud-refusal with zero
+    recorded rows, delivery-log kind/channels, CLI regression for the
+    existing paths). Full core suite: 357/357 green (32 files).
 - Alert content: artist, title, price, source link, "buy" deep link.
 - Per-user rate limit so a restock flood doesn't send 40 texts.
 
