@@ -377,4 +377,30 @@ CREATE TABLE activity (
 
 CREATE INDEX activity_user_idx ON activity (user_id, created_at DESC);
 
+-- ------------------------------------------------- alert engine state --
+
+-- The matching engine's memory: the last-seen snapshot for every user+release
+-- pair runEngine has ever observed. Without these rows, a scheduler restart
+-- re-fires every known release as "new" — the flood that the
+-- alert-persistence module prevents by loading this table into prevStates
+-- before the first tick and upserting it after every tick.
+--
+-- The queue's durable seen-set is the `alerts` table itself: restoreQueueSeen
+-- replays dispatched alert rows back into the queue, so an already-alerted
+-- user+release is never queued again, across restarts. No second table.
+CREATE TABLE engine_state (
+  user_id    text        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  -- The release side of prevStateKey("user\us release"): the Discogs
+  -- release id, or the normalized "artist::title" fallback when there is
+  -- no id (fixture-shaped data).
+  state_key  text        NOT NULL,
+  -- Exactly the { price_cents, in_stock, seen_at } shape runEngine writes
+  -- into prevStates. jsonb so the engine can grow it without a migration.
+  state      jsonb       NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, state_key)
+);
+
+CREATE INDEX engine_state_updated_idx ON engine_state (updated_at DESC);
+
 COMMIT;
