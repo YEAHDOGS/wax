@@ -252,6 +252,32 @@ CREATE TABLE digest_queue (
 
 CREATE INDEX digest_queue_user_idx ON digest_queue (user_id, queued_at);
 
+-- Alert subscriptions (double opt-in, src/subscriptions.js). One row per
+-- (channel, recipient, filter): re-subscribing an active or pending row
+-- returns it instead of duplicating. `confirm_token` is the proof of
+-- ownership for both the confirmation link and one-click unsubscribe (the
+-- plan's List-Unsubscribe flow). `filter_key` is the canonicalized filter
+-- JSON, so idempotency compares exactly what the user asked to watch.
+CREATE TABLE alert_subscriptions (
+  id              text        PRIMARY KEY,
+  email           text,
+  phone           text,
+  recipient       text        NOT NULL,
+  channel         text        NOT NULL CHECK (channel IN ('email', 'sms')),
+  filter          jsonb       NOT NULL DEFAULT '{}',
+  filter_key      text        NOT NULL,
+  state           text        NOT NULL DEFAULT 'pending'
+                            CHECK (state IN ('pending', 'active', 'unsubscribed')),
+  confirm_token   text        NOT NULL UNIQUE,
+  confirm_receipt jsonb       NOT NULL DEFAULT '{}',
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  confirmed_at    timestamptz,
+  unsubscribed_at timestamptz,
+  CHECK (email IS NOT NULL OR phone IS NOT NULL)
+);
+
+CREATE INDEX alert_subscriptions_recipient_idx ON alert_subscriptions (recipient, state);
+
 -- ------------------------------------------------------- scan worker --
 
 -- The scan worker's attempt log (ALERT-ENGINE-PLAN.md §2): one row per scan
