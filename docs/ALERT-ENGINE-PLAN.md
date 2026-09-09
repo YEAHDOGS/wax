@@ -89,8 +89,19 @@ same transparency pattern as DOGS Remote's attempt log.
      render as inert text — alerts are the wrong place to learn what an href can do), every user string
      HTML-escaped, deleted releases fall back to the raw id, and rows are scoped to the requesting user.
      Pinned by `packages/core/test-alert-history.mjs` (8 tests).
-   - **NEXT:** wire it into a route — a tiny serverless adapter (e.g. `GET /api/alerts/history?state=`) or a
-     static export behind the dashboard, so Brando can see it in a browser.
+   - **BUILT (2026-09-09, jack/wax-routes):** route wiring done — `GET /api/alerts/history?state=`
+     in `api/alerts/history.js` serves the page as standalone static HTML, following the `/api/alerts`
+     session conventions (Bearer <redacted> → 401). Core has an `alertHistory(token, { state })` handler;
+     `api/_lib/http.js` has an `html()` responder next to `json()`. Pinned by
+     `packages/core/test-alert-routes.mjs`.
+   - **BUILT (2026-09-09, jack/wax-routes):** alert detail view — `GET /api/alerts/history?id=alr_...`
+     renders one alert as a standalone static HTML page (`renderAlertDetail` in
+     `packages/core/src/alert-detail.js`, same zero-deps static-page contract as the history page).
+     History rows link to their detail page with relative `?id=` links; the `alertDetail(token, id)`
+     handler 404s unknown ids and other users' ids identically (no id oracle). Pinned by the same
+     `test-alert-routes.mjs` (15 tests).
+   - **NEXT:** unsubscribe flow for email alerts (one-click List-Unsubscribe) — the missing piece
+     before real sends, and it needs Brando's `RESEND_API_KEY` anyway.
 
 ## 5. Free-tier mapping
 

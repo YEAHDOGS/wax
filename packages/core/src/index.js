@@ -102,6 +102,7 @@ export {
 } from './poller.js';
 export { renderDashboard } from './dashboard.js';
 export { renderAlertHistory } from './alert-history.js';
+export { renderAlertDetail } from './alert-detail.js';
 export {
   createHttpFetcher,
   RobotsDisallowedError,

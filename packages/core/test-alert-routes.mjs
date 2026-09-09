@@ -14,10 +14,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  alertDetail,
   alertHistory,
   ApiError,
   createStore,
   login,
+  renderAlertDetail,
   store as defaultStore,
 } from './src/index.js';
 
@@ -191,6 +193,104 @@ test('route: no token is a 401 JSON error, not a page', async () => {
     error: 'unauthorized',
     message: 'Sign in to do that.',
   });
+});
+
+/* ------------------------------------------------------------------ *
+ * The alert detail view — GET /api/alerts/history?id=
+ * ------------------------------------------------------------------ */
+
+test('alertDetail: renders the joined alert as a full HTML document', () => {
+  const store = createStore();
+  fixtureUser(store);
+  addAlert(store, { id: 'alr_detail', kind: 'price', price_cents: 1999 });
+  const token = store.createSession('usr_route').token;
+  const page = alertDetail(token, 'alr_detail', { store });
+  assert.ok(page.includes('<!DOCTYPE html>'));
+  assert.ok(page.includes('Route Test LP'));
+  assert.ok(page.includes('Route Artist'));
+  assert.ok(page.includes('$19.99'));
+  assert.ok(page.includes('price hit'));
+  assert.ok(page.includes('href="/api/alerts/history"'));
+});
+
+test('alertDetail: renderer escapes hostile strings and neuters javascript: URLs', () => {
+  const store = createStore();
+  fixtureUser(store);
+  addAlert(store, {
+    id: 'alr_hostile',
+    listing_url: 'javascript:alert(1)',
+  });
+  store.releases.update((r) => r.id === 'rel_route', { title: '<img src=x onerror=alert(1)>' });
+  const page = renderAlertDetail(store, store.alerts.find((a) => a.id === 'alr_hostile'));
+  assert.ok(!page.includes('<img src=x'));
+  assert.ok(page.includes('&lt;img src=x'));
+  assert.ok(!page.includes('href="javascript:'));
+});
+
+test('alertDetail: unknown id is a 404, never a page', () => {
+  const store = createStore();
+  fixtureUser(store);
+  const token = store.createSession('usr_route').token;
+  assert.throws(
+    () => alertDetail(token, 'alr_nope', { store }),
+    (err) => err instanceof ApiError && err.status === 404 && err.code === 'not_found',
+  );
+});
+
+test('alertDetail: another user\'s alert id is the same 404 — no id oracle', () => {
+  const store = createStore();
+  fixtureUser(store);
+  addAlert(store, { id: 'alr_mine' });
+  store.users.insert({
+    id: 'usr_snoop', email: 'snoop@example.com', handle: 'snoop',
+    display_name: 'Snoop', avatar_url: null, plan: 'free', trial_ends_at: null,
+    phone: null, phone_verified: false, email_verified: true,
+    created_at: BASE,
+  });
+  const token = store.createSession('usr_snoop').token;
+  assert.throws(
+    () => alertDetail(token, 'alr_mine', { store }),
+    (err) => err instanceof ApiError && err.status === 404,
+  );
+});
+
+test('route: ?id= renders the detail page as text/html', async () => {
+  const req = fakeReq({ token: SEEDED.token, query: { id: 'alr_seeded_dispatched' } });
+  const res = fakeRes();
+  await route(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers['content-type'], 'text/html; charset=utf-8');
+  assert.ok(res.body.includes('<!DOCTYPE html>'));
+  assert.ok(res.body.includes('Seeded Route History LP'));
+  assert.ok(res.body.includes('$42.00'));
+  assert.ok(res.body.includes('not yet dispatched') === false); // it was dispatched
+});
+
+test('route: history rows link to their detail page', async () => {
+  const req = fakeReq({ token: SEEDED.token });
+  const res = fakeRes();
+  await route(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.ok(res.body.includes('?id=alr_seeded_dispatched'));
+});
+
+test('route: unknown ?id= is a 404 JSON error, not a page', async () => {
+  const req = fakeReq({ token: SEEDED.token, query: { id: 'alr_nope' } });
+  const res = fakeRes();
+  await route(req, res);
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.headers['content-type'], 'application/json; charset=utf-8');
+  assert.deepEqual(JSON.parse(res.body), {
+    error: 'not_found',
+    message: 'Alert not found.',
+  });
+});
+
+test('route: ?id= without a token is a 401, not a 404 — auth first', async () => {
+  const req = fakeReq({ query: { id: 'alr_seeded_dispatched' } });
+  const res = fakeRes();
+  await route(req, res);
+  assert.equal(res.statusCode, 401);
 });
 
 test('route: unsupported methods get a 405 naming GET', async () => {
