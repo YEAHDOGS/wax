@@ -192,8 +192,15 @@ export {
   createDisabledResendAdapter,
   createDisabledTwilioAdapter,
   createConsoleAdapter,
+  createDryRunAdapter,
   resolveSendAdapters,
 } from './send-adapters.js';
+export {
+  DISPATCH_DEFAULT_MAX_ATTEMPTS,
+  defaultAddressOf,
+  composeDispatchMessage,
+  createAlertDispatcher,
+} from './alert-dispatcher.js';
 export {
   DIGEST_MIN_INTERVAL_MS,
   DIGEST_MAX_AGE_MS,
