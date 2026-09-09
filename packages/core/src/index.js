@@ -21,6 +21,17 @@
  */
 
 export * from './handlers.js';
+export {
+  PLANS,
+  SERIES_PRICE_CENTS,
+  SERIES_CURRENCY,
+  TRIAL_DAYS,
+  startTrial,
+  expireTrials,
+  activateSeries,
+  checkoutSession,
+  getCheckoutSession,
+} from './billing.js';
 export { store, createStore, newId, newToken } from './store.js';
 export { seed } from './seed.js';
 export { TYPES_VERSION } from './types.js';
