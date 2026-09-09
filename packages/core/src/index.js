@@ -29,6 +29,11 @@
  * |               | + crawl-delay, per-host politeness, adaptive backoff,     |
  * |               | per-method parsers. The production `fetcher` for the       |
  * |               | worker above; transport is injectable for tests.          |
+ * | `dispatch.js`  | Pluggable delivery channels (plan §3): webhook, log,       |
+ * |               | Resend/Twilio stubs, exactly-once dispatch with receipts.    |
+ * | `rules.js`    | Alert rule engine (plan §4 item 4, after dispatch): watch      |
+ * |               | rule matchers + conditions, dedupe, quiet hours, digest      |
+ * |               | batching. Pure decision logic — the worker persists.        |
  * | `dashboard.js`| Watchlist status view (plan §4 item 6): artists, sites,    |
  * |               | alerts as plain text. Pure render — see `bin/wax`.         |
  *
@@ -128,3 +133,16 @@ export {
   dispatchAlert,
   dispatchScanAlerts,
 } from './dispatch.js';
+export {
+  normText,
+  alertDedupeKey,
+  parseQuietBound,
+  isQuietHour,
+  evaluateWatchRule,
+  alreadyAlerted,
+  routeAlert,
+  routeAlerts,
+  shouldFlushDigest,
+  buildDigestBatch,
+  ROUTE,
+} from './rules.js';
