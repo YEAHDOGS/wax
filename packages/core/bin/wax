@@ -7,6 +7,9 @@
  *     → `wax status`: the alert engine's watchlist view, from the terminal.
  *   node packages/core/bin/wax alert dispatch [--dry-run] [--live] [--limit N]
  *     → drain the alert queue and deliver through the dispatch stage.
+ *   node packages/core/bin/wax billing sweep [--json]
+ *     → sweep expired trials back to `free`. Run on a schedule (hourly is
+ *       plenty); idempotent. `--json` prints a machine-readable summary.
  *
  * Runs entirely against the seeded demo store and the Discogs-shaped
  * fixtures: no network, no credentials, nothing leaves the machine.
@@ -30,6 +33,7 @@ import {
   createAlertPersistence,
   createAlertDispatcher,
   resolveSendAdapters,
+  expireTrials,
 } from '../src/index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -39,6 +43,8 @@ const [cmd, sub, ...rest] = process.argv.slice(2);
 
 if (cmd === 'alert' && sub === 'dispatch') {
   await runAlertDispatch(rest);
+} else if (cmd === 'billing' && sub === 'sweep') {
+  runBillingSweep(rest);
 } else {
   const userId = cmd ?? 'usr_test';
   const store = createStore();
@@ -103,5 +109,27 @@ async function runAlertDispatch(flags) {
         `    ${r.user_id} — ${r.release_id} (${r.kind}) via ${(r.channels ?? []).join(', ') || 'none'} at ${r.dispatched_at}\n`,
       );
     }
+  }
+}
+
+/**
+ * `wax billing sweep` — expire past-due trials back to `free`.
+ *
+ * The sweeper lives in `billing.js` (`expireTrials`) and is documented as
+ * run-on-a-schedule; this is the cron's entry point. Runs against the seeded
+ * demo store here (production swaps `createStore()` for the Postgres store
+ * the same way every other module does — see the plan's Postgres note).
+ * Idempotent: sweeping twice changes nothing the second time. `--json`
+ * prints `{"expired": N}` for cron logs.
+ */
+function runBillingSweep(flags) {
+  const store = createStore();
+  const expired = expireTrials({ store });
+  if (flags.includes('--json')) {
+    process.stdout.write(`${JSON.stringify({ expired })}\n`);
+  } else {
+    process.stdout.write(
+      `[wax] billing sweep — ${expired} trial${expired === 1 ? '' : 's'} expired back to free\n`,
+    );
   }
 }
