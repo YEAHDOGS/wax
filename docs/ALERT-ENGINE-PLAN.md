@@ -58,17 +58,29 @@ same transparency pattern as DOGS Remote's attempt log.
 ## 3. Alert delivery
 
 - Resend (email) + Twilio (SMS) — same providers the wax1 prototype aimed at.
+  - **BUILT (2026-09-09, jack/wax-provider-adapters):** `createResendChannel`
+    and `createTwilioChannel` in `packages/core/src/dispatch.js` are fully
+    wired — Resend `POST /emails` with Bearer key, Twilio Messages API with
+    Basic auth + form encoding. Both take a loopback `baseUrl` for tests;
+    constructor throws without live keys (no fake sends, ever); provider
+    4xx/transport failures return `{ ok: false }` receipts, never throw;
+    invalid email addresses and non-E.164 phone numbers are refused before
+    any socket opens. Pinned by `packages/core/test-dispatch-providers.mjs`
+    (9 tests, loopback stubs only).
+  - **LIVE SENDS PENDING:** Brando still needs to supply `RESEND_API_KEY`
+    and `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` — nothing in the codebase
+    carries real credentials, by design.
 - Alert content: artist, title, price, source link, "buy" deep link.
 - Per-user rate limit so a restock flood doesn't send 40 texts.
 
 ## 4. Build order
 
-1. Data model (artists, sources, releases, alerts).
-2. Scannability probe endpoint + UI verdict display.
-3. Scan worker + queue + snapshot diffing.
-4. Artist matching + cross-source dedupe.
-5. Alert delivery (Resend, then Twilio).
-6. UI: add artist, add site, scan status dashboard, alert history.
+1. Data model (artists, sources, releases, alerts). — done
+2. Scannability probe endpoint + UI verdict display. — done (`probe.js`)
+3. Scan worker + queue + snapshot diffing. — done (`fetcher.js`, `poller.js`, `scanner.js`)
+4. Artist matching + cross-source dedupe. — done (`scanner.js`, `rules.js`)
+5. Alert delivery (Resend, then Twilio). — done (adapters wired, key-gated; live keys pending from Brando)
+6. UI: add artist, add site, scan status dashboard, alert history. — partially done (`dashboard.js`); alert history UI remains
 
 ## 5. Free-tier mapping
 
