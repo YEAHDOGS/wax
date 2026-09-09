@@ -180,6 +180,7 @@ export {
   queueDedupeKey,
   createAlertQueue,
 } from './alert-queue.js';
+export { createAlertScheduler } from './alert-scheduler.js';
 export {
   SEND_WIRING,
   createDisabledResendAdapter,
