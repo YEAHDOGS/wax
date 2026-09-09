@@ -116,3 +116,15 @@ export {
   matchArtists,
   dedupeCandidates,
 } from './scanner.js';
+export {
+  WEBHOOK_TIMEOUT_MS,
+  WEBHOOK_MAX_BODY_BYTES,
+  canPost,
+  assertChannel,
+  createWebhookChannel,
+  createLogChannel,
+  createResendChannel,
+  createTwilioChannel,
+  dispatchAlert,
+  dispatchScanAlerts,
+} from './dispatch.js';
