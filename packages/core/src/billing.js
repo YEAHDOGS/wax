@@ -116,6 +116,16 @@ export function expireTrials({ store = defaultStore } = {}) {
 }
 
 /**
+ * The plan the dispatch path actually enforces for this user, right now.
+ *
+ * Lives in `./plan.js` (a leaf module — billing cannot be imported from
+ * `handlers.js` without a cycle, since billing already imports handlers
+ * for `ApiError`/`requireUser`). Re-exported here so the public API stays
+ * `import { effectivePlan } from './billing.js'`.
+ */
+export { effectivePlan } from './plan.js';
+
+/**
  * Mark a user paid-up. Called only from the payment provider's webhook after
  * the charge is confirmed — never directly from client code.
  *

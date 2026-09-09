@@ -45,6 +45,7 @@ import { newId } from './store.js';
 import { MIN_SCAN_INTERVAL_SECS } from './tracking.js';
 import { scanSnapshot, matchArtists, dedupeCandidates } from './scanner.js';
 import { formatDropEmail, formatDropSms, shouldDispatch } from './notify.js';
+import { effectivePlan } from './plan.js';
 
 /** The user-agent every fetch must identify with (plan §2). */
 export const USER_AGENT = 'WaxBot/1.0; +https://wax.wearedogs.net/bot';
@@ -308,7 +309,9 @@ function buildAlerts(store, matches, nowMs) {
     const source = store.sources.find((s) => s.id === m.source_id);
     if (!source) continue;
     const user = store.users.find((u) => u.id === source.user_id);
-    const plan = user?.plan ?? 'free';
+    // Read-path trial enforcement: a trial past its expiry reads as free
+    // even before the hourly sweep writes it. See `effectivePlan`.
+    const plan = effectivePlan(user, { now: nowMs });
     const watch = m.artist.watch ?? store.watches.find((w) => w.user_id === source.user_id && w.artist_id === m.artist.id);
     const channels = watch?.channels?.length ? watch.channels : ['email'];
     const label = sourceLabel(source);
