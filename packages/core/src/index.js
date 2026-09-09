@@ -39,6 +39,10 @@
  * | `digest.js`   | Digest queue (plan §3, the rest of notify's rate contract):   |
  * |               | queue held-back deliveries, flush due digest emails with  |
  * |               | quiet-hours gating. Channel is injected — zero network.    |
+ * | `closeout.js` | Alert close-out (plan §3, the wiring the pieces were       |
+ * |               | missing): `runWorkerTick` is the cron entry point — scan  |
+ * |               | every due source, dispatch what may go, queue held        |
+ * |               | deliveries into the digest queue, flush due digests.      |
  *
  * Two consumers import from here and they get identical behaviour:
  *
@@ -156,3 +160,8 @@ export {
   queueHeldAlerts,
   flushDigestQueue,
 } from './digest.js';
+export {
+  filterAlreadyAlerted,
+  runAlertCloseout,
+  runWorkerTick,
+} from './closeout.js';
