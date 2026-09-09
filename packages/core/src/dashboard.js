@@ -14,15 +14,15 @@
  * @param {string} userId
  * @param {object} [opts]
  * @param {number} [opts.alertLimit] How many recent alerts to show.
- * @returns {string}
+ * @returns {Promise<string>}
  */
-export function renderDashboard(store, userId, { alertLimit = 10 } = {}) {
+export async function renderDashboard(store, userId, { alertLimit = 10 } = {}) {
   const lines = [];
   lines.push('WAX — watchlist status');
   lines.push('======================');
 
-  const watches = store.watches
-    .filter((w) => w.user_id === userId)
+  const watches = (await store.watches
+    .filter((w) => w.user_id === userId))
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
   lines.push('');
   lines.push(`Artists watched (${watches.length})`);
@@ -30,15 +30,15 @@ export function renderDashboard(store, userId, { alertLimit = 10 } = {}) {
     lines.push('  (none — add an artist to start getting drop alerts)');
   }
   for (const w of watches) {
-    const artist = store.artists.find((a) => a.id === w.artist_id);
+    const artist = await store.artists.find((a) => a.id === w.artist_id);
     const name = artist ? artist.name : w.artist_id;
-    const nAlerts = store.alerts.filter((a) => a.user_id === userId && a.watch_id === w.id).length;
+    const nAlerts = (await store.alerts.filter((a) => a.user_id === userId && a.watch_id === w.id)).length;
     const channels = (w.channels ?? []).join('+') || 'email';
     lines.push(`  • ${name}  [${channels}]  ${nAlerts} alert${nAlerts === 1 ? '' : 's'}`);
   }
 
-  const sources = store.sources
-    .filter((s) => s.user_id === userId)
+  const sources = (await store.sources
+    .filter((s) => s.user_id === userId))
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
   lines.push('');
   lines.push(`Merch sites tracked (${sources.length})`);
@@ -57,8 +57,8 @@ export function renderDashboard(store, userId, { alertLimit = 10 } = {}) {
     lines.push(`    ${verdict} · ${state} · last scan: ${last}${failures}`);
   }
 
-  const alerts = store.alerts
-    .filter((a) => a.user_id === userId)
+  const alerts = (await store.alerts
+    .filter((a) => a.user_id === userId))
     .sort((a, b) => Date.parse(b.detected_at) - Date.parse(a.detected_at))
     .slice(0, alertLimit);
   lines.push('');
@@ -67,9 +67,9 @@ export function renderDashboard(store, userId, { alertLimit = 10 } = {}) {
     lines.push('  (none yet — alerts land here when the scan loop finds a drop)');
   }
   for (const a of alerts) {
-    const release = store.releases.find((r) => r.id === a.release_id);
+    const release = await store.releases.find((r) => r.id === a.release_id);
     const title = release ? release.title : a.release_id;
-    const artist = release ? (store.artists.find((ar) => ar.id === release.artist_id) ?? {}).name ?? '' : '';
+    const artist = release ? ((await store.artists.find((ar) => ar.id === release.artist_id)) ?? {}).name ?? '' : '';
     const price = a.price_cents === null || a.price_cents === undefined
       ? '—'
       : `$${(a.price_cents / 100).toFixed(2)}`;

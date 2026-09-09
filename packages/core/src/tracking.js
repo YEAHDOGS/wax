@@ -84,15 +84,15 @@ function verdictToColumns(verdict) {
  * @param {typeof defaultStore} [deps.store]
  * @returns {import('./types.js').Source}
  */
-export function addSource(token, { url, label = null, html = null, accept_unscannable = false }, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
+export async function addSource(token, { url, label = null, html = null, accept_unscannable = false }, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
   const parsed = validateUrl(url);
   const canonical = parsed.toString();
 
-  const existing = store.sources.find((s) => s.user_id === user.id && s.url === canonical);
+  const existing = await store.sources.find((s) => s.user_id === user.id && s.url === canonical);
   if (existing) return existing;
 
-  const count = store.sources.filter((s) => s.user_id === user.id).length;
+  const count = (await store.sources.filter((s) => s.user_id === user.id)).length;
   // Same read-path trial enforcement as the watch gate in handlers.js.
   if (effectivePlan(user) === 'free' && count >= FREE_SOURCE_LIMIT) {
     throw new ApiError(
@@ -152,8 +152,8 @@ export function addSource(token, { url, label = null, html = null, accept_unscan
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
  */
-export function updateSource(token, sourceId, patch, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
+export async function updateSource(token, sourceId, patch, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
   const clean = {};
   if ('paused' in patch) clean.paused = Boolean(patch.paused);
   if ('label' in patch) clean.label = patch.label;
@@ -171,7 +171,7 @@ export function updateSource(token, sourceId, patch, { store = defaultStore } = 
     }
     clean.scan_interval_secs = Math.max(MIN_SCAN_INTERVAL_SECS, Math.floor(secs));
   }
-  const updated = store.sources.update(
+  const updated = await store.sources.update(
     (s) => s.id === sourceId && s.user_id === user.id,
     clean,
   );
@@ -188,9 +188,9 @@ export function updateSource(token, sourceId, patch, { store = defaultStore } = 
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
  */
-export function removeSource(token, sourceId, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
-  const removed = store.sources.remove((s) => s.id === sourceId && s.user_id === user.id);
+export async function removeSource(token, sourceId, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  const removed = await store.sources.remove((s) => s.id === sourceId && s.user_id === user.id);
   return { ok: true, removed };
 }
 
@@ -200,9 +200,9 @@ export function removeSource(token, sourceId, { store = defaultStore } = {}) {
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
  */
-export function listSources(token, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
-  return store.sources
-    .filter((s) => s.user_id === user.id)
+export async function listSources(token, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  return (await store.sources
+    .filter((s) => s.user_id === user.id))
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
 }

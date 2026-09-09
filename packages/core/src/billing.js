@@ -89,8 +89,8 @@ export const PLANS = {
  * @throws {ApiError} 404 `not_found` when the user does not exist;
  *   409 `trial_already_used` when the user is already on `trial` or `series`.
  */
-export function startTrial(token, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
+export async function startTrial(token, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
   if (user.plan === 'trial' || user.plan === 'series') {
     throw new ApiError(409, 'trial_already_used', 'This account already used its trial.');
   }
@@ -104,13 +104,13 @@ export function startTrial(token, { store = defaultStore } = {}) {
  * @param {{ store?: object }} [opts]
  * @returns {number} How many trials expired in this pass.
  */
-export function expireTrials({ store = defaultStore } = {}) {
+export async function expireTrials({ store = defaultStore } = {}) {
   const now = new Date().toISOString();
-  const expired = store.users.filter(
+  const expired = await store.users.filter(
     (u) => u.plan === 'trial' && u.trial_ends_at && u.trial_ends_at <= now,
   );
   for (const u of expired) {
-    store.users.update((row) => row.id === u.id, { plan: 'free', trial_ends_at: null });
+    await store.users.update((row) => row.id === u.id, { plan: 'free', trial_ends_at: null });
   }
   return expired.length;
 }
@@ -135,8 +135,8 @@ export { effectivePlan } from './plan.js';
  * @returns {object} The updated user row.
  * @throws {ApiError} 404 `not_found` when the user does not exist.
  */
-export function activateSeries(token, externalId, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
+export async function activateSeries(token, externalId, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
   return store.users.update((u) => u.id === user.id, {
     plan: 'series',
     trial_ends_at: null,
@@ -164,8 +164,8 @@ export function activateSeries(token, externalId, { store = defaultStore } = {})
  *   409 `already_subscribed` when the user is already on `series`;
  *   501 `billing_not_configured` in `live` mode until a provider is wired.
  */
-export function checkoutSession(token, { mode = 'test', successUrl, cancelUrl, store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
+export async function checkoutSession(token, { mode = 'test', successUrl, cancelUrl, store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
   if (user.plan === 'series') {
     throw new ApiError(409, 'already_subscribed', 'This account is already on the Subscription Series.');
   }
