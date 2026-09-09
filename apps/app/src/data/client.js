@@ -76,7 +76,10 @@ export const getToken = () => token;
  */
 async function local(fn) {
   try {
-    return fn();
+    // `await` inside the try, not a bare `return`: the core handlers are
+    // async, so an ApiError arrives as a rejection and only an await here
+    // routes it into ClientError normalization.
+    return await fn();
   } catch (err) {
     if (err?.name === 'ApiError') throw new ClientError(err.status, err.code, err.message);
     throw err;
