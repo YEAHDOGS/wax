@@ -80,7 +80,17 @@ same transparency pattern as DOGS Remote's attempt log.
 3. Scan worker + queue + snapshot diffing. — done (`fetcher.js`, `poller.js`, `scanner.js`)
 4. Artist matching + cross-source dedupe. — done (`scanner.js`, `rules.js`)
 5. Alert delivery (Resend, then Twilio). — done (adapters wired, key-gated; live keys pending from Brando)
-6. UI: add artist, add site, scan status dashboard, alert history. — partially done (`dashboard.js`); alert history UI remains
+6. UI: add artist, add site, scan status dashboard, alert history. — done (`dashboard.js`, `alert-history.js`)
+   - **BUILT (2026-09-09, jack/wax-alert-history):** `renderAlertHistory(store, userId, { state })` in
+     `packages/core/src/alert-history.js` renders the full alert history as a standalone static HTML page —
+     zero JS, zero CSS framework. Joined rows (release + artist + channels + detection price), `?state=` filter
+     row with per-state counts (`live/caught/sold_out/watching/missed`) mirroring the board's filter row,
+     unread markers (from `read_at`), listing links for http(s) URLs only (hostile URLs like `javascript:`
+     render as inert text — alerts are the wrong place to learn what an href can do), every user string
+     HTML-escaped, deleted releases fall back to the raw id, and rows are scoped to the requesting user.
+     Pinned by `packages/core/test-alert-history.mjs` (8 tests).
+   - **NEXT:** wire it into a route — a tiny serverless adapter (e.g. `GET /api/alerts/history?state=`) or a
+     static export behind the dashboard, so Brando can see it in a browser.
 
 ## 5. Free-tier mapping
 
