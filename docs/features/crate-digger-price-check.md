@@ -83,5 +83,22 @@ both this card and the alert engine.
 1. Release resolution from barcode/catalog# (Discogs search).
 2. Marketplace stats pull per release ID, cached per scan session.
 3. Verdict card UI (mobile-first — this is used standing in a store).
+   - **BUILT (2026-09-09, jack/wax-price-verdict):** the verdict engine —
+     `packages/core/src/price-verdict.js` (`summarizeMarketplaceStats`,
+     `verdictForAskingPrice`, `adjacentGradeVerdicts`,
+     `checkPressingMatch`, `watchRuleFromVerdict`), exported from
+     `@wax/core`. Grade-segmented medians, ±15% Good deal / Fair /
+     Overpriced bands, the "if it's really VG+, not VG" teaching row, and
+     the reissue guardrail — all pure, all fixture-driven (no network).
+     Pinned by `packages/core/test-price-verdict.mjs` (11 tests) on a
+     `fixtures/doggystyle-marketplace.json` snapshot drawn from the
+     2026-09-09 Doggystyle market note. UI card and the barcode/catalog#
+     Discogs resolution are still pending.
 4. "Alert me" handoff → existing watch-rule creation.
+   - **BUILT (2026-09-09, jack/wax-price-verdict):** `watchRuleFromVerdict`
+     in `price-verdict.js` converts a price check into a `Watch`-shaped
+     standing rule (artist + title_contains + target_price_cents) for the
+     drop path's `evaluateWatchRule` + cooldown + dispatch. The engine
+     *writes the watch*; existing machinery owns the rest. Caller inserts
+     into `store.watches` — no-login path keys on the session user id.
 5. (V2) sold-history medians; (V3) cover-art lookup.
