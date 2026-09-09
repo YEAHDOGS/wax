@@ -208,6 +208,28 @@
  */
 
 /**
+ * A user-submitted merch site the alert engine scans. The probe verdict is
+ * stored here at onboarding; per-site config (pause, interval override)
+ * lives here too so a flaky source can be quieted without deleting it.
+ *
+ * @typedef {object} Source
+ * @property {string}     id
+ * @property {string}     user_id
+ * @property {string}     url
+ * @property {?string}    label
+ * @property {string}     platform             Probe's platform guess.
+ * @property {?('feed'|'platform-api'|'structured-data'|'sitemap'|'heuristic')} scan_method
+ * @property {boolean}    scannable
+ * @property {?string}    scannable_reason     Verdict detail shown to the user.
+ * @property {?string}    snapshot_hash        Hash of the last scan's product list.
+ * @property {number}     scan_interval_secs   Adaptive interval; 60s default.
+ * @property {boolean}    paused
+ * @property {?Timestamp} last_scan_at
+ * @property {number}     consecutive_failures
+ * @property {Timestamp}  created_at
+ */
+
+/**
  * A standing instruction: tell me about this artist.
  *
  * @typedef {object} Watch

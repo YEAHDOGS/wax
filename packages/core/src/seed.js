@@ -544,6 +544,7 @@ export const seed = {
   artists,
   releases,
   tracks,
+  sources: [],
   watches,
   alerts,
   crateItems,
