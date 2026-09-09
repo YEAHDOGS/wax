@@ -131,6 +131,7 @@ function buildStore(data) {
     artists: collection(data.artists),
     releases: collection(data.releases),
     tracks: collection(data.tracks),
+    sources: collection(data.sources ?? []),
     watches: collection(data.watches),
     alerts: collection(data.alerts),
     crateItems: collection(data.crateItems),

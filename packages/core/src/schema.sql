@@ -135,6 +135,36 @@ CREATE TABLE tracks (
 
 CREATE INDEX tracks_release_idx ON tracks (release_id);
 
+-- ------------------------------------------------------------------ sources --
+
+-- A user-submitted merch site the alert engine scans for new drops. The probe
+-- (probe.js, alert engine gate 1) writes the verdict here at onboarding; the
+-- scan queue reads scan_interval_secs/paused/snapshot_hash on every pass.
+CREATE TABLE sources (
+  id                 text        PRIMARY KEY,
+  user_id            text        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  url                text        NOT NULL,
+  label              text,
+  -- Platform guess from the probe, e.g. 'shopify', 'bandcamp', 'bigcartel',
+  -- 'unknown'. Feeds the fetch strategy the worker chooses.
+  platform           text        NOT NULL DEFAULT 'unknown',
+  scan_method        text        CHECK (scan_method IN
+                        ('feed', 'platform-api', 'structured-data', 'sitemap', 'heuristic')),
+  scannable          boolean     NOT NULL DEFAULT false,
+  scannable_reason   text,
+  snapshot_hash      text,
+  -- Adaptive scan interval in seconds. Starts at 60 for cheap structured
+  -- sources (ALERT-ENGINE-PLAN.md §2), backs off on failures.
+  scan_interval_secs integer     NOT NULL DEFAULT 60,
+  paused             boolean     NOT NULL DEFAULT false,
+  last_scan_at       timestamptz,
+  consecutive_failures integer   NOT NULL DEFAULT 0,
+  created_at         timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (user_id, url)
+);
+
+CREATE INDEX sources_user_idx ON sources (user_id);
+
 -- ------------------------------------------------------------------ alerts --
 
 -- What a user asked to be told about. The free tier caps this at three rows
