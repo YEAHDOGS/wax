@@ -225,6 +225,11 @@ export function createAlertDispatcher({
       to,
       message: composeDispatchMessage(event),
       nowMs: at,
+      // Carries the recipient's unsubscribe token when the caller knows it
+      // (e.g. from the alert_subscriptions row). Channels that build
+      // per-recipient List-Unsubscribe links (see the Resend channel's
+      // unsubscribeUrl resolver) read this; `null` means "no token, no link".
+      unsubscribe_token: event?.unsubscribe_token ?? null,
     };
     let receipt;
     try {
