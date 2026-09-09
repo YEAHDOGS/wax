@@ -21,6 +21,15 @@
  * `Array.find` and returns the finished object. If that ever gets slow, the
  * fix is a SQL join in the same function — not an abstraction on top of it.
  *
+ * ## Async
+ *
+ * Every handler is `async` and awaits every store call, even though the
+ * in-memory store resolves synchronously: the Postgres swap (`store-postgres.js`)
+ * is fully async, and awaiting is what makes both stores behave identically
+ * through this layer. The mechanical await-pass is pinned by
+ * `test-async-api-surface.mjs`, which runs the whole read/write surface
+ * against a promise-returning store shim.
+ *
  * ## Errors
  *
  * Handlers throw {@link ApiError}. The adapters catch it and map `.status`
@@ -86,11 +95,11 @@ export const TEST_USER_EMAIL = 'test@wax.fm';
  * @param {boolean} [input.test] Sign in as the seeded test collector.
  * @param {object}  [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {import('./types.js').SessionView}
+ * @returns {Promise<import('./types.js').SessionView>}
  */
-export function login({ email, password, test = false } = {}, { store = defaultStore } = {}) {
+export async function login({ email, password, test = false } = {}, { store = defaultStore } = {}) {
   const address = test ? TEST_USER_EMAIL : String(email ?? '').trim().toLowerCase();
-  const user = store.users.find((u) => u.email.toLowerCase() === address);
+  const user = await store.users.find((u) => u.email.toLowerCase() === address);
 
   // Same error for "no such account" and "wrong password", so the response
   // cannot be used to enumerate which addresses have accounts.
@@ -98,12 +107,12 @@ export function login({ email, password, test = false } = {}, { store = defaultS
     throw new ApiError(401, 'bad_credentials', 'That email and password do not match an account.');
   }
 
-  const session = store.createSession(user.id);
+  const session = await store.createSession(user.id);
   return {
     token: session.token,
     expires_at: session.expires_at,
     user,
-    profile: store.profiles.find((p) => p.user_id === user.id),
+    profile: await store.profiles.find((p) => p.user_id === user.id),
   };
 }
 
@@ -117,10 +126,10 @@ export function login({ email, password, test = false } = {}, { store = defaultS
  * @param {?string} token
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {import('./types.js').User}
+ * @returns {Promise<import('./types.js').User>}
  */
-export function requireUser(token, { store = defaultStore } = {}) {
-  const user = store.userForToken(token);
+export async function requireUser(token, { store = defaultStore } = {}) {
+  const user = await store.userForToken(token);
   if (!user) throw unauthorized();
   return user;
 }
@@ -131,16 +140,16 @@ export function requireUser(token, { store = defaultStore } = {}) {
  * @param {?string} token
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {import('./types.js').SessionView}
+ * @returns {Promise<import('./types.js').SessionView>}
  */
-export function getSession(token, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
-  const session = store.sessions.find((s) => s.token === token);
+export async function getSession(token, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  const session = await store.sessions.find((s) => s.token === token);
   return {
     token,
     expires_at: session.expires_at,
     user,
-    profile: store.profiles.find((p) => p.user_id === user.id),
+    profile: await store.profiles.find((p) => p.user_id === user.id),
   };
 }
 
@@ -150,10 +159,10 @@ export function getSession(token, { store = defaultStore } = {}) {
  * @param {?string} token
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {{ ok: true }}
+ * @returns {Promise<{ ok: true }>}
  */
-export function logout(token, { store = defaultStore } = {}) {
-  store.endSession(token);
+export async function logout(token, { store = defaultStore } = {}) {
+  await store.endSession(token);
   return { ok: true };
 }
 
@@ -165,9 +174,9 @@ export function logout(token, { store = defaultStore } = {}) {
  * @param {import('./types.js').Release} release
  * @param {typeof defaultStore} store
  */
-const withArtist = (release, store) => ({
+const withArtist = async (release, store) => ({
   ...release,
-  artist: store.artists.find((a) => a.id === release.artist_id) ?? null,
+  artist: (await store.artists.find((a) => a.id === release.artist_id)) ?? null,
 });
 
 /**
@@ -178,14 +187,14 @@ const withArtist = (release, store) => ({
  * @param {number} [query.limit]
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {Array<import('./types.js').Release & { artist: ?import('./types.js').Artist }>}
+ * @returns {Promise<Array<import('./types.js').Release & { artist: ?import('./types.js').Artist }>>}
  */
-export function listReleases({ artist_id, limit } = {}, { store = defaultStore } = {}) {
-  let rows = store.releases.all();
+export async function listReleases({ artist_id, limit } = {}, { store = defaultStore } = {}) {
+  let rows = await store.releases.all();
   if (artist_id) rows = rows.filter((r) => r.artist_id === artist_id);
   rows.sort((a, b) => Date.parse(b.released_at ?? 0) - Date.parse(a.released_at ?? 0));
   if (limit) rows = rows.slice(0, limit);
-  return rows.map((r) => withArtist(r, store));
+  return Promise.all(rows.map((r) => withArtist(r, store)));
 }
 
 /**
@@ -196,15 +205,15 @@ export function listReleases({ artist_id, limit } = {}, { store = defaultStore }
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
  */
-export function getRelease(id, { store = defaultStore } = {}) {
-  const release = store.releases.find((r) => r.id === id || r.cat === id);
+export async function getRelease(id, { store = defaultStore } = {}) {
+  const release = await store.releases.find((r) => r.id === id || r.cat === id);
   if (!release) throw notFound('Release');
+  const tracks = (await store.tracks.filter((t) => t.release_id === release.id))
+    .sort((a, b) => a.position - b.position);
   return {
-    ...withArtist(release, store),
-    price: store.latestPrice(release.id),
-    tracks: store.tracks
-      .filter((t) => t.release_id === release.id)
-      .sort((a, b) => a.position - b.position),
+    ...(await withArtist(release, store)),
+    price: await store.latestPrice(release.id),
+    tracks,
   };
 }
 
@@ -220,11 +229,10 @@ export function getRelease(id, { store = defaultStore } = {}) {
  * @param {?string} [options.streamBase] e.g. `'/api/stream'`. Null leaves URLs untouched.
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {import('./types.js').Track[]}
+ * @returns {Promise<import('./types.js').Track[]>}
  */
-export function listTracks({ streamBase = null } = {}, { store = defaultStore } = {}) {
-  return store.tracks
-    .all()
+export async function listTracks({ streamBase = null } = {}, { store = defaultStore } = {}) {
+  return (await store.tracks.all())
     .sort((a, b) => a.position - b.position)
     .map((t) => ({
       ...t,
@@ -244,14 +252,14 @@ export function listTracks({ streamBase = null } = {}, { store = defaultStore } 
  * @param {number} durationSec
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {import('./types.js').Track}
+ * @returns {Promise<import('./types.js').Track>}
  */
-export function setTrackDuration(id, durationSec, { store = defaultStore } = {}) {
+export async function setTrackDuration(id, durationSec, { store = defaultStore } = {}) {
   const seconds = Math.round(Number(durationSec));
   if (!Number.isFinite(seconds) || seconds <= 0) {
     throw new ApiError(400, 'bad_duration', 'Duration must be a positive number of seconds.');
   }
-  const updated = store.tracks.update((t) => t.id === id, { duration_sec: seconds });
+  const updated = await store.tracks.update((t) => t.id === id, { duration_sec: seconds });
   if (!updated) throw notFound('Track');
   return updated;
 }
@@ -270,27 +278,28 @@ export function setTrackDuration(id, durationSec, { store = defaultStore } = {})
  * @param {import('./types.js').AlertState|'all'} [query.state] Filter, default all.
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {import('./types.js').AlertRow[]}
+ * @returns {Promise<import('./types.js').AlertRow[]>}
  */
-export function listAlerts(token, { state = 'all' } = {}, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
+export async function listAlerts(token, { state = 'all' } = {}, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
   const crate = new Set(
-    store.crateItems.filter((c) => c.user_id === user.id).map((c) => c.release_id),
+    (await store.crateItems.filter((c) => c.user_id === user.id)).map((c) => c.release_id),
   );
 
-  return store.alerts
-    .filter((a) => a.user_id === user.id && (state === 'all' || a.state === state))
-    .sort((a, b) => Date.parse(b.detected_at) - Date.parse(a.detected_at))
-    .map((alert) => {
-      const release = store.releases.find((r) => r.id === alert.release_id);
+  const rows = (await store.alerts.filter((a) => a.user_id === user.id && (state === 'all' || a.state === state)))
+    .sort((a, b) => Date.parse(b.detected_at) - Date.parse(a.detected_at));
+  return Promise.all(
+    rows.map(async (alert) => {
+      const release = await store.releases.find((r) => r.id === alert.release_id);
       return {
         ...alert,
         release,
-        artist: store.artists.find((a) => a.id === release?.artist_id) ?? null,
+        artist: (await store.artists.find((a) => a.id === release?.artist_id)) ?? null,
         in_crate: crate.has(alert.release_id),
-        price: store.latestPrice(alert.release_id),
+        price: await store.latestPrice(alert.release_id),
       };
-    });
+    }),
+  );
 }
 
 /**
@@ -302,11 +311,11 @@ export function listAlerts(token, { state = 'all' } = {}, { store = defaultStore
  * @param {?string} token
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {{ all: number, live: number, caught: number, sold_out: number, watching: number, missed: number, unread: number }}
+ * @returns {Promise<{ all: number, live: number, caught: number, sold_out: number, watching: number, missed: number, unread: number }>}
  */
-export function alertCounts(token, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
-  const rows = store.alerts.filter((a) => a.user_id === user.id);
+export async function alertCounts(token, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  const rows = await store.alerts.filter((a) => a.user_id === user.id);
   const of = (s) => rows.filter((a) => a.state === s).length;
   return {
     all: rows.length,
@@ -332,10 +341,10 @@ export function alertCounts(token, { store = defaultStore } = {}) {
  * @param {import('./types.js').AlertState|'all'} [query.state] Filter, default all.
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {string} A complete HTML document.
+ * @returns {Promise<string>} A complete HTML document.
  */
-export function alertHistory(token, { state = 'all' } = {}, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
+export async function alertHistory(token, { state = 'all' } = {}, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
   return renderAlertHistory(store, user.id, { state });
 }
 
@@ -350,11 +359,11 @@ export function alertHistory(token, { state = 'all' } = {}, { store = defaultSto
  * @param {string} alertId
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {string} A complete HTML document.
+ * @returns {Promise<string>} A complete HTML document.
  */
-export function alertDetail(token, alertId, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
-  const alert = store.alerts.find((a) => a.id === alertId && a.user_id === user.id);
+export async function alertDetail(token, alertId, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  const alert = await store.alerts.find((a) => a.id === alertId && a.user_id === user.id);
   if (!alert) throw notFound('Alert');
   return renderAlertDetail(store, alert);
 }
@@ -367,11 +376,11 @@ export function alertDetail(token, alertId, { store = defaultStore } = {}) {
  * @param {string} alertId
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {import('./types.js').Alert}
+ * @returns {Promise<import('./types.js').Alert>}
  */
-export function markAlertRead(token, alertId, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
-  const alert = store.alerts.find((a) => a.id === alertId && a.user_id === user.id);
+export async function markAlertRead(token, alertId, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  const alert = await store.alerts.find((a) => a.id === alertId && a.user_id === user.id);
   if (!alert) throw notFound('Alert');
   if (alert.read_at) return alert;
   return store.alerts.update((a) => a.id === alertId, { read_at: new Date().toISOString() });
@@ -391,29 +400,29 @@ export function markAlertRead(token, alertId, { store = defaultStore } = {}) {
  * @param {?number} [input.paid_cents] Defaults to the price at detection.
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {{ alert: import('./types.js').Alert, crate_item: import('./types.js').CrateItem }}
+ * @returns {Promise<{ alert: import('./types.js').Alert, crate_item: import('./types.js').CrateItem }>}
  */
-export function catchAlert(token, alertId, { condition = 'M', paid_cents } = {}, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
-  const alert = store.alerts.find((a) => a.id === alertId && a.user_id === user.id);
+export async function catchAlert(token, alertId, { condition = 'M', paid_cents } = {}, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  const alert = await store.alerts.find((a) => a.id === alertId && a.user_id === user.id);
   if (!alert) throw notFound('Alert');
   if (alert.state === 'sold_out') {
     throw new ApiError(409, 'sold_out', 'That listing is gone. Wax will watch for a restock.');
   }
 
   const now = new Date().toISOString();
-  const updated = store.alerts.update((a) => a.id === alertId, {
+  const updated = await store.alerts.update((a) => a.id === alertId, {
     state: 'caught',
     read_at: alert.read_at ?? now,
   });
 
   // A pressing can only be in a crate once; catching an alert for something
   // already owned updates nothing and is not an error.
-  let item = store.crateItems.find(
+  let item = await store.crateItems.find(
     (c) => c.user_id === user.id && c.release_id === alert.release_id,
   );
   if (!item) {
-    item = store.crateItems.insert({
+    item = await store.crateItems.insert({
       id: newId('crt'),
       user_id: user.id,
       release_id: alert.release_id,
@@ -423,7 +432,7 @@ export function catchAlert(token, alertId, { condition = 'M', paid_cents } = {},
       notes: null,
       created_at: now,
     });
-    store.activity.insert({
+    await store.activity.insert({
       id: newId('act'),
       user_id: user.id,
       verb: 'caught',
@@ -444,22 +453,23 @@ export function catchAlert(token, alertId, { condition = 'M', paid_cents } = {},
  * @param {?string} token
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {import('./types.js').CrateRow[]}
+ * @returns {Promise<import('./types.js').CrateRow[]>}
  */
-export function listCrate(token, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
-  return store.crateItems
-    .filter((c) => c.user_id === user.id)
-    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
-    .map((item) => {
-      const release = store.releases.find((r) => r.id === item.release_id);
+export async function listCrate(token, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  const rows = (await store.crateItems.filter((c) => c.user_id === user.id))
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  return Promise.all(
+    rows.map(async (item) => {
+      const release = await store.releases.find((r) => r.id === item.release_id);
       return {
         ...item,
         release,
-        artist: store.artists.find((a) => a.id === release?.artist_id) ?? null,
-        price: store.latestPrice(item.release_id),
+        artist: (await store.artists.find((a) => a.id === release?.artist_id)) ?? null,
+        price: await store.latestPrice(item.release_id),
       };
-    });
+    }),
+  );
 }
 
 /**
@@ -473,19 +483,19 @@ export function listCrate(token, { store = defaultStore } = {}) {
  * @param {?string} [input.notes]
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {import('./types.js').CrateItem}
+ * @returns {Promise<import('./types.js').CrateItem>}
  */
-export function addToCrate(token, { release_id, condition = 'NM', paid_cents = null, notes = null }, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
-  if (!store.releases.find((r) => r.id === release_id)) throw notFound('Release');
+export async function addToCrate(token, { release_id, condition = 'NM', paid_cents = null, notes = null }, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  if (!(await store.releases.find((r) => r.id === release_id))) throw notFound('Release');
 
-  const existing = store.crateItems.find(
+  const existing = await store.crateItems.find(
     (c) => c.user_id === user.id && c.release_id === release_id,
   );
   if (existing) return existing;
 
   const now = new Date().toISOString();
-  const item = store.crateItems.insert({
+  const item = await store.crateItems.insert({
     id: newId('crt'),
     user_id: user.id,
     release_id,
@@ -495,7 +505,7 @@ export function addToCrate(token, { release_id, condition = 'NM', paid_cents = n
     notes,
     created_at: now,
   });
-  store.activity.insert({
+  await store.activity.insert({
     id: newId('act'),
     user_id: user.id,
     verb: 'added',
@@ -513,11 +523,11 @@ export function addToCrate(token, { release_id, condition = 'NM', paid_cents = n
  * @param {string} releaseId
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {{ ok: true, removed: number }}
+ * @returns {Promise<{ ok: true, removed: number }>}
  */
-export function removeFromCrate(token, releaseId, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
-  const removed = store.crateItems.remove(
+export async function removeFromCrate(token, releaseId, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  const removed = await store.crateItems.remove(
     (c) => c.user_id === user.id && c.release_id === releaseId,
   );
   return { ok: true, removed };
@@ -537,22 +547,24 @@ export function removeFromCrate(token, releaseId, { store = defaultStore } = {})
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
  */
-export function listPriceWatch(token, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
-  return store.wantlistItems
-    .filter((w) => w.user_id === user.id)
-    .map((want) => {
-      const release = store.releases.find((r) => r.id === want.release_id);
-      const price = store.latestPrice(want.release_id);
-      return {
-        ...want,
-        release,
-        artist: store.artists.find((a) => a.id === release?.artist_id) ?? null,
-        price,
-        hit: Boolean(price && want.target_price_cents && price.low_cents <= want.target_price_cents),
-      };
-    })
-    .sort((a, b) => Number(b.hit) - Number(a.hit));
+export async function listPriceWatch(token, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  const wants = await store.wantlistItems.filter((w) => w.user_id === user.id);
+  return (
+    await Promise.all(
+      wants.map(async (want) => {
+        const release = await store.releases.find((r) => r.id === want.release_id);
+        const price = await store.latestPrice(want.release_id);
+        return {
+          ...want,
+          release,
+          artist: (await store.artists.find((a) => a.id === release?.artist_id)) ?? null,
+          price,
+          hit: Boolean(price && want.target_price_cents && price.low_cents <= want.target_price_cents),
+        };
+      }),
+    )
+  ).sort((a, b) => Number(b.hit) - Number(a.hit));
 }
 
 // ------------------------------------------------------------------ watches
@@ -567,18 +579,19 @@ export const FREE_WATCH_LIMIT = 3;
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
  */
-export function listWatches(token, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
-  return store.watches
-    .filter((w) => w.user_id === user.id)
-    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
-    .map((w) => ({
+export async function listWatches(token, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  const rows = (await store.watches.filter((w) => w.user_id === user.id))
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  return Promise.all(
+    rows.map(async (w) => ({
       ...w,
-      artist: store.artists.find((a) => a.id === w.artist_id) ?? null,
-      alert_count: store.alerts.filter(
+      artist: (await store.artists.find((a) => a.id === w.artist_id)) ?? null,
+      alert_count: (await store.alerts.filter(
         (al) => al.user_id === user.id && al.watch_id === w.id,
-      ).length,
-    }));
+      )).length,
+    })),
+  );
 }
 
 /**
@@ -596,16 +609,16 @@ export function listWatches(token, { store = defaultStore } = {}) {
  * @param {import('./types.js').Channel[]} [input.channels]
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {import('./types.js').Watch}
+ * @returns {Promise<import('./types.js').Watch>}
  */
-export function addWatch(token, { artist_id, merch_types = [], target_price_cents = null, channels = ['push'] }, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
-  if (!store.artists.find((a) => a.id === artist_id)) throw notFound('Artist');
+export async function addWatch(token, { artist_id, merch_types = [], target_price_cents = null, channels = ['push'] }, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  if (!(await store.artists.find((a) => a.id === artist_id))) throw notFound('Artist');
 
-  const existing = store.watches.find((w) => w.user_id === user.id && w.artist_id === artist_id);
+  const existing = await store.watches.find((w) => w.user_id === user.id && w.artist_id === artist_id);
   if (existing) return existing;
 
-  const count = store.watches.filter((w) => w.user_id === user.id).length;
+  const count = (await store.watches.filter((w) => w.user_id === user.id)).length;
   // Read-path trial enforcement: an expired-but-unswept trial counts as
   // free here too. See `effectivePlan` in plan.js.
   if (effectivePlan(user) === 'free' && count >= FREE_WATCH_LIMIT) {
@@ -635,11 +648,11 @@ export function addWatch(token, { artist_id, merch_types = [], target_price_cent
  * @param {string} watchId
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {{ ok: true, removed: number }}
+ * @returns {Promise<{ ok: true, removed: number }>}
  */
-export function removeWatch(token, watchId, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
-  const removed = store.watches.remove((w) => w.id === watchId && w.user_id === user.id);
+export async function removeWatch(token, watchId, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  const removed = await store.watches.remove((w) => w.id === watchId && w.user_id === user.id);
   return { ok: true, removed };
 }
 
@@ -673,32 +686,33 @@ const publicUser = (user) => ({
  * @param {string} [handle] Whose profile. Defaults to the signed-in user.
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {import('./types.js').ProfileView}
+ * @returns {Promise<import('./types.js').ProfileView>}
  */
-export function getProfile(token, handle, { store = defaultStore } = {}) {
-  const viewer = requireUser(token, { store });
+export async function getProfile(token, handle, { store = defaultStore } = {}) {
+  const viewer = await requireUser(token, { store });
   const user = handle
-    ? store.users.find((u) => u.handle === handle || u.id === handle)
+    ? await store.users.find((u) => u.handle === handle || u.id === handle)
     : viewer;
   if (!user) throw notFound('Profile');
 
-  const profile = store.profiles.find((p) => p.user_id === user.id);
-  const crate = store.crateItems.filter((c) => c.user_id === user.id);
-  const alerts = store.alerts.filter((a) => a.user_id === user.id);
+  const profile = await store.profiles.find((p) => p.user_id === user.id);
+  const crate = await store.crateItems.filter((c) => c.user_id === user.id);
+  const alerts = await store.alerts.filter((a) => a.user_id === user.id);
   const owned = new Set(crate.map((c) => c.release_id));
 
   // What the crate cost against what it is currently worth, at median spread.
   const crate_paid = crate.reduce((sum, c) => sum + (c.paid_cents ?? 0), 0);
-  const crate_value = crate.reduce((sum, c) => {
-    const price = store.latestPrice(c.release_id);
-    return sum + (price?.median_cents ?? c.paid_cents ?? 0);
-  }, 0);
+  let crate_value = 0;
+  for (const c of crate) {
+    const price = await store.latestPrice(c.release_id);
+    crate_value += price?.median_cents ?? c.paid_cents ?? 0;
+  }
 
   // Genres, ranked by how many records in the crate carry them.
   const genreCounts = new Map();
   for (const item of crate) {
-    const release = store.releases.find((r) => r.id === item.release_id);
-    const artist = store.artists.find((a) => a.id === release?.artist_id);
+    const release = await store.releases.find((r) => r.id === item.release_id);
+    const artist = await store.artists.find((a) => a.id === release?.artist_id);
     for (const genre of artist?.genres ?? []) {
       genreCounts.set(genre, (genreCounts.get(genre) ?? 0) + 1);
     }
@@ -711,39 +725,43 @@ export function getProfile(token, handle, { store = defaultStore } = {}) {
   // Collectors sharing pressings with this one. `overlap` is the share of
   // *this* user's crate the neighbour also owns, so it reads as "they have 60%
   // of what you have" rather than as a symmetric similarity score.
-  const neighbours = store.users
-    .filter((u) => u.id !== user.id)
-    .map((other) => {
-      const theirs = store.crateItems.filter((c) => c.user_id === other.id);
-      const shared = theirs.filter((c) => owned.has(c.release_id)).length;
-      return {
+  const others = (await store.users.all()).filter((u) => u.id !== user.id);
+  const neighbours = [];
+  for (const other of others) {
+    const theirs = await store.crateItems.filter((c) => c.user_id === other.id);
+    const shared = theirs.filter((c) => owned.has(c.release_id)).length;
+    if (shared > 0) {
+      neighbours.push({
         user: publicUser(other),
         shared,
         overlap: owned.size ? shared / owned.size : 0,
-      };
-    })
-    .filter((n) => n.shared > 0)
-    .sort((a, b) => b.shared - a.shared);
+      });
+    }
+  }
+  neighbours.sort((a, b) => b.shared - a.shared);
+
+  const watches = await store.watches.filter((w) => w.user_id === user.id);
+  const follows = await store.follows.filter((f) => f.followee_id === user.id || f.follower_id === user.id);
+  const activity = (await store.activity.filter((a) => a.user_id === user.id))
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+    .slice(0, 12);
 
   return {
     user: publicUser(user),
     profile,
     stats: {
       crate_count: crate.length,
-      watch_count: store.watches.filter((w) => w.user_id === user.id).length,
+      watch_count: watches.length,
       caught_count: alerts.filter((a) => a.state === 'caught').length,
       missed_count: alerts.filter((a) => a.state === 'sold_out' || a.state === 'missed').length,
       crate_paid,
       crate_value,
-      follower_count: store.follows.filter((f) => f.followee_id === user.id).length,
-      following_count: store.follows.filter((f) => f.follower_id === user.id).length,
+      follower_count: follows.filter((f) => f.followee_id === user.id).length,
+      following_count: follows.filter((f) => f.follower_id === user.id).length,
       top_genres,
     },
     neighbours,
-    activity: store.activity
-      .filter((a) => a.user_id === user.id)
-      .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
-      .slice(0, 12),
+    activity,
   };
 }
 
@@ -756,10 +774,10 @@ export function getProfile(token, handle, { store = defaultStore } = {}) {
  * @param {Partial<import('./types.js').Profile>} patch
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {import('./types.js').Profile}
+ * @returns {Promise<import('./types.js').Profile>}
  */
-export function updateProfile(token, patch = {}, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
+export async function updateProfile(token, patch = {}, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
   /** @type {Partial<import('./types.js').Profile>} */
   const allowed = {};
   if (typeof patch.bio === 'string') allowed.bio = patch.bio;
@@ -769,7 +787,7 @@ export function updateProfile(token, patch = {}, { store = defaultStore } = {}) 
   if (typeof patch.crate_public === 'boolean') allowed.crate_public = patch.crate_public;
   allowed.updated_at = new Date().toISOString();
 
-  const updated = store.profiles.update((p) => p.user_id === user.id, allowed);
+  const updated = await store.profiles.update((p) => p.user_id === user.id, allowed);
   if (!updated) throw notFound('Profile');
   return updated;
 }
@@ -782,12 +800,12 @@ export function updateProfile(token, patch = {}, { store = defaultStore } = {}) 
  * @param {string} trackId
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
- * @returns {{ ok: true }}
+ * @returns {Promise<{ ok: true }>}
  */
-export function recordPlay(token, trackId, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
-  if (!store.tracks.find((t) => t.id === trackId)) throw notFound('Track');
-  store.activity.insert({
+export async function recordPlay(token, trackId, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  if (!(await store.tracks.find((t) => t.id === trackId))) throw notFound('Track');
+  await store.activity.insert({
     id: newId('act'),
     user_id: user.id,
     verb: 'played',
@@ -811,17 +829,17 @@ export function recordPlay(token, trackId, { store = defaultStore } = {}) {
  * @param {object} [deps]
  * @param {typeof defaultStore} [deps.store]
  */
-export function bootstrap(token, { streamBase = null } = {}, { store = defaultStore } = {}) {
-  const user = requireUser(token, { store });
+export async function bootstrap(token, { streamBase = null } = {}, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
   return {
     user,
-    profile: store.profiles.find((p) => p.user_id === user.id),
-    alerts: listAlerts(token, { state: 'all' }, { store }),
-    counts: alertCounts(token, { store }),
-    crate: listCrate(token, { store }),
-    watches: listWatches(token, { store }),
-    price_watch: listPriceWatch(token, { store }),
-    tracks: listTracks({ streamBase }, { store }),
-    profile_view: getProfile(token, undefined, { store }),
+    profile: await store.profiles.find((p) => p.user_id === user.id),
+    alerts: await listAlerts(token, { state: 'all' }, { store }),
+    counts: await alertCounts(token, { store }),
+    crate: await listCrate(token, { store }),
+    watches: await listWatches(token, { store }),
+    price_watch: await listPriceWatch(token, { store }),
+    tracks: await listTracks({ streamBase }, { store }),
+    profile_view: await getProfile(token, undefined, { store }),
   };
 }
