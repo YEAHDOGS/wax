@@ -33,6 +33,11 @@ CREATE TABLE users (
   phone         text,
   phone_verified  boolean   NOT NULL DEFAULT false,
   email_verified  boolean   NOT NULL DEFAULT false,
+  -- Quiet hours the user set, "HH:MM" in UTC (the UI converts the user's
+  -- local bedtime before storing). The rule engine defers alerts inside the
+  -- window to the digest; null on either side disables quiet hours.
+  quiet_hours_start text,
+  quiet_hours_end   text,
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 
@@ -180,6 +185,11 @@ CREATE TABLE watches (
   merch_types        text[]      NOT NULL DEFAULT '{}',
   -- Alert me if any listing for this artist's releases drops below this.
   target_price_cents integer,
+  -- Optional text matchers narrowing the rule, e.g. 'test press' or a label
+  -- name. Null means no constraint; the rule engine evaluates them in
+  -- src/rules.js.
+  title_contains text,
+  label_contains text,
   channels           text[]      NOT NULL DEFAULT '{email}',
   created_at         timestamptz NOT NULL DEFAULT now(),
   UNIQUE (user_id, artist_id)
