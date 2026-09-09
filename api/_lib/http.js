@@ -78,6 +78,24 @@ export function json(res, status, body) {
 }
 
 /**
+ * Send an HTML response.
+ *
+ * The alert-history page (`/api/alerts/history`) is standalone static HTML —
+ * the same no-store policy as JSON applies, because every row on it is
+ * session-scoped.
+ *
+ * @param {import('http').ServerResponse} res
+ * @param {number} status
+ * @param {string} body
+ */
+export function html(res, status, body) {
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  res.end(body);
+}
+
+/**
  * Permit the Expo dev server, and any origin in the demo, to call this API.
  *
  * The app and the API are same-origin in production, so this matters only for
