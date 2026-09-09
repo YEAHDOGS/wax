@@ -131,6 +131,7 @@ export {
 export {
   WEBHOOK_TIMEOUT_MS,
   WEBHOOK_MAX_BODY_BYTES,
+  PROVIDER_TIMEOUT_MS,
   canPost,
   assertChannel,
   createWebhookChannel,

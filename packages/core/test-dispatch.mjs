@@ -6,7 +6,7 @@
  * No dependencies beyond the Node standard library. The webhook channel is
  * tested against a local stub server on 127.0.0.1 — there is no outbound
  * network here, ever. These tests pin the dispatch contract: the channel
- * interface, the guards, the loud provider stubs, and exactly-once
+ * interface, the guards, the key-gated provider adapters, and exactly-once
  * dispatch of a deduped alert with receipts recorded in the scan log. If
  * any of them fail, the delivery contract with the alert engine changed,
  * and that is the regression.
@@ -100,11 +100,18 @@ test('createTwilioChannel: throws without live credentials, names Brando as the 
   assert.throws(() => createTwilioChannel({ accountSid: 'ACx' }), /needs live credentials from Brando/);
 });
 
-test('provider stubs: even WITH keys, send() refuses to fake a delivery', async () => {
-  const resend = createResendChannel({ apiKey: 're_x', from: 'alerts@wax.wearedogs.net' });
-  const twilio = createTwilioChannel({ accountSid: 'ACx', authToken: 'tok', from: '+15550123456' });
-  await assert.rejects(() => resend.send({}), /documented stub/);
-  await assert.rejects(() => twilio.send({}), /documented stub/);
+test('providers: send() never throws and never reaches the network without a stub — invalid recipients fail as receipts', async () => {
+  // baseUrl points nowhere reachable; the invalid-recipient guard fires
+  // first, so no socket is ever opened. A provider send is a receipt,
+  // never a throw and never a fake success.
+  const resend = createResendChannel({ apiKey: 're_x', from: 'alerts@wax.wearedogs.net', baseUrl: 'http://127.0.0.1:1' });
+  const twilio = createTwilioChannel({ accountSid: 'ACx', authToken: 'tok', from: '+15550123456', baseUrl: 'http://127.0.0.1:1' });
+  const email = await resend.send({ alert: {}, channel: 'email', to: 'not-an-email', message: null, nowMs: T0 });
+  assert.equal(email.ok, false);
+  assert.match(email.error, /invalid address/);
+  const sms = await twilio.send({ alert: {}, channel: 'sms', to: '5551234', message: 'hi', nowMs: T0 });
+  assert.equal(sms.ok, false);
+  assert.match(sms.error, /E\.164/);
 });
 
 /* ------------------------------------------------------------------ *

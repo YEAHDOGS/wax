@@ -29,11 +29,19 @@
  * - `createLogChannel({ path })` — appends one JSONL line per send to a
  *   local file. Dev/test channel; the receipts it records are marked
  *   `dev: true` so a log line is never mistaken for a real send.
- * - `createResendChannel({ apiKey, from })` / `createTwilioChannel({ ... })`
- *   — DOCUMENTED STUBS. The constructors throw unless a live key is
- *   supplied ("needs API key from Brando"), and `send()` refuses to fake
- *   a send. Real provider wiring is a later, deliberate step — never ship
- *   fake sends as real ones.
+ * - `createResendChannel({ apiKey, from, baseUrl? })` — fully wired email
+ *   adapter: POSTs `{ from, to, subject, text }` to the Resend `/emails`
+ *   endpoint with a Bearer key. Still throws at setup without a live key —
+ *   a stub send would be fraud. Key-gated, loopback-tested; live sends
+ *   wait on Brando's `RESEND_API_KEY`.
+ * - `createTwilioChannel({ accountSid, authToken, from, baseUrl? })` —
+ *   fully wired SMS adapter: POSTs form-encoded `From`/`To`/`Body` to the
+ *   Twilio Messages API with Basic auth. Addresses are validated to E.164
+ *   before anything leaves. Key-gated, loopback-tested; live sends wait
+ *   on Brando's Twilio credentials.
+ *
+ * `baseUrl` on both providers exists only for the test suite's loopback
+ * stub servers — production always uses the provider's real endpoint.
  *
  * ## Wiring
  *
@@ -102,6 +110,96 @@ export function assertChannel(channel, label = 'channel') {
     throw new TypeError(`${label} must expose send(envelope)`);
   }
   return channel;
+}
+
+/* ------------------------------------------------------------------ *
+ * Shared provider plumbing
+ * ------------------------------------------------------------------ */
+
+/** Hard ceiling on bytes read off any provider response. */
+const PROVIDER_MAX_BODY_BYTES = 64 * 1024;
+
+/** Provider HTTP timeout — a slow provider counts as a failure, fast. */
+export const PROVIDER_TIMEOUT_MS = 10_000;
+
+/**
+ * One provider HTTP call — POST body, JSON or form-encoded — with a hard
+ * timeout and body cap. No retries here: retry policy belongs to the
+ * worker (`poller.js`), not the wire. Returns `{ statusCode, headers,
+ * bodyText }` or throws on transport failure.
+ */
+function postProvider(url, { method = 'POST', headers = {}, body = '' } = {}) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const impl = parsed.protocol === 'https:' ? httpsRequest : httpRequest;
+    const req = impl(
+      {
+        hostname: parsed.hostname,
+        port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+        path: `${parsed.pathname}${parsed.search}`,
+        method,
+        headers: { 'user-agent': 'WaxBot/1.0; +https://wax.wearedogs.net/bot', ...headers },
+        timeout: PROVIDER_TIMEOUT_MS,
+      },
+      (res) => {
+        let bytes = 0;
+        const chunks = [];
+        res.on('data', (chunk) => {
+          bytes += chunk.length;
+          if (bytes <= PROVIDER_MAX_BODY_BYTES) chunks.push(chunk);
+          else res.destroy();
+        });
+        res.on('end', () =>
+          resolve({ statusCode: res.statusCode, headers: res.headers, bodyText: Buffer.concat(chunks).toString('utf8') }),
+        );
+      },
+    );
+    req.on('timeout', () => req.destroy(new Error('provider timed out')));
+    req.on('error', reject);
+    req.end(body);
+  });
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const E164_RE = /^\+[1-9]\d{7,14}$/;
+
+/** ISO timestamp for a receipt, honoring the envelope's clock in tests. */
+function receiptAt(envelope) {
+  return new Date(envelope?.nowMs ?? Date.now()).toISOString();
+}
+
+/** The text the recipient sees — a formatted message, or the raw alert. */
+function messageText(message, alert) {
+  if (typeof message === 'string') return message;
+  if (message && typeof message === 'object') return message.text ?? message.body ?? JSON.stringify(message);
+  return alert?.listing_url ? `Wax: ${alert.artist_name ?? 'new drop'} — ${alert.title ?? ''} ${alert.listing_url}`.trim() : 'Wax alert';
+}
+
+function messageSubject(message, alert) {
+  if (message && typeof message === 'object' && typeof message.subject === 'string') return message.subject;
+  const artist = alert?.artist_name ?? 'Wax';
+  const title = alert?.title ?? 'new drop';
+  return `${artist} — ${title}`;
+}
+
+/**
+ * Parse a JSON provider body defensively — a provider erroring as HTML
+ * must not take down the dispatch layer.
+ */
+function safeJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Build the `{ ok: false }` receipt every provider error path shares,
+ * so a 4xx, a transport failure, and a bad address all read the same.
+ */
+function providerFailure(name, sentAt, error) {
+  return { ok: false, channel: name, error, sentAt };
 }
 
 /* ------------------------------------------------------------------ *
@@ -250,16 +348,24 @@ export function createLogChannel({ path, name = 'log' } = {}) {
  * ------------------------------------------------------------------ */
 
 /**
- * Email adapter shape for Resend. A DOCUMENTED STUB: the constructor
- * throws unless a live key is supplied, and `send()` refuses to fake a
- * delivery. Real provider wiring needs Brando's key AND a deliberate
- * second pass — this file will never quietly pretend a stub is a send.
+ * Email adapter for Resend — the plan §3 provider, fully wired.
+ *
+ * Constructor is still loud without a live key (dispatch never fakes
+ * email), but with one it really sends: `POST {baseUrl}/emails` with a
+ * Bearer token, `{ from, to, subject, text }` body, per the documented
+ * Resend API shape.
+ *
+ * `baseUrl` exists only so the test suite can aim the adapter at a local
+ * stub server — production always uses the default
+ * `https://api.resend.com`. Nothing here needs or stores a real key;
+ * Brando supplies `RESEND_API_KEY` when the send is real.
  *
  * @param {object} input
  * @param {string} input.apiKey Live Resend key (`RESEND_API_KEY`).
  * @param {string} input.from Verified sender, e.g. `alerts@wax.wearedogs.net`.
+ * @param {string} [input.baseUrl] Provider root. Defaults to the real one.
  */
-export function createResendChannel({ apiKey, from } = {}) {
+export function createResendChannel({ apiKey, from, baseUrl = 'https://api.resend.com' } = {}) {
   if (!apiKey || typeof apiKey !== 'string') {
     throw new Error(
       'Resend email channel needs a live API key from Brando (RESEND_API_KEY) — ' +
@@ -272,29 +378,62 @@ export function createResendChannel({ apiKey, from } = {}) {
   const channel = {
     name: 'resend',
     kind: 'email',
-    async send() {
-      throw new Error(
-        'Resend adapter is a documented stub: the provider HTTP call is not ' +
-          'wired yet. Wire src/dispatch.js createResendChannel.send against ' +
-          'https://api.resend.com/emails with the live key before using.',
-      );
+    async send(envelope) {
+      const sentAt = receiptAt(envelope);
+      const to = envelope?.to ?? null;
+      if (!to || !EMAIL_RE.test(to)) {
+        return providerFailure('resend', sentAt, `refusing to send email to invalid address ${JSON.stringify(to)}`);
+      }
+      const payload = JSON.stringify({
+        from,
+        to: [to],
+        subject: messageSubject(envelope?.message, envelope?.alert),
+        text: messageText(envelope?.message, envelope?.alert),
+      });
+      try {
+        const { statusCode, bodyText } = await postProvider(`${baseUrl}/emails`, {
+          headers: {
+            'content-type': 'application/json',
+            'content-length': Buffer.byteLength(payload),
+            authorization: `Bearer ${apiKey}`,
+          },
+          body: payload,
+        });
+        const body = safeJson(bodyText);
+        if (statusCode >= 200 && statusCode < 300) {
+          return { ok: true, channel: 'resend', messageId: body?.id ?? null, sentAt };
+        }
+        return providerFailure(
+          'resend',
+          sentAt,
+          `Resend HTTP ${statusCode}: ${body?.message ?? bodyText.slice(0, 200)}`,
+        );
+      } catch (err) {
+        return providerFailure('resend', sentAt, `Resend failed: ${err?.message ?? String(err)}`);
+      }
     },
   };
   return assertChannel(channel, 'resend channel');
 }
 
 /**
- * SMS adapter shape for Twilio. Same stub contract as Resend: loud
- * without keys, and `send()` refuses to fake an SMS. The 160-char single
- * segment the notify layer formats (`formatDropSms`) is exactly what a
- * real send would carry.
+ * SMS adapter for Twilio — the plan §3 provider, fully wired.
+ *
+ * Constructor is still loud without live credentials, but with them it
+ * really sends: `POST {baseUrl}/2010-04-01/Accounts/{sid}/Messages.json`
+ * with HTTP Basic auth and a form-encoded `From`/`To`/`Body`, per the
+ * documented Twilio Messages API shape. The 160-char single segment the
+ * notify layer formats (`formatDropSms`) is exactly what rides the wire.
+ *
+ * `baseUrl` exists only for the loopback test stub; production uses the
+ * default `https://api.twilio.com`.
  *
  * @param {object} input
  * @param {string} input.accountSid Live Twilio account SID.
  * @param {string} input.authToken Live Twilio auth token.
- * @param {string} input.from Twilio-verified sender number.
+ * @param {string} input.from Twilio-verified sender number (E.164).
  */
-export function createTwilioChannel({ accountSid, authToken, from } = {}) {
+export function createTwilioChannel({ accountSid, authToken, from, baseUrl = 'https://api.twilio.com' } = {}) {
   if (!accountSid || !authToken) {
     throw new Error(
       'Twilio SMS channel needs live credentials from Brando ' +
@@ -308,12 +447,39 @@ export function createTwilioChannel({ accountSid, authToken, from } = {}) {
   const channel = {
     name: 'twilio',
     kind: 'sms',
-    async send() {
-      throw new Error(
-        'Twilio adapter is a documented stub: the provider HTTP call is not ' +
-          'wired yet. Wire src/dispatch.js createTwilioChannel.send against ' +
-          'the Twilio Messages API with the live credentials before using.',
-      );
+    async send(envelope) {
+      const sentAt = receiptAt(envelope);
+      const to = envelope?.to ?? null;
+      if (!to || !E164_RE.test(to)) {
+        return providerFailure('twilio', sentAt, `refusing to SMS invalid number ${JSON.stringify(to)} (E.164 expected)`);
+      }
+      const params = new URLSearchParams({ From: from, To: to, Body: messageText(envelope?.message, envelope?.alert) });
+      const form = params.toString();
+      const basic = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+      try {
+        const { statusCode, bodyText } = await postProvider(
+          `${baseUrl}/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages.json`,
+          {
+            headers: {
+              'content-type': 'application/x-www-form-urlencoded',
+              'content-length': Buffer.byteLength(form),
+              authorization: `Basic ${basic}`,
+            },
+            body: form,
+          },
+        );
+        const body = safeJson(bodyText);
+        if (statusCode >= 200 && statusCode < 300) {
+          return { ok: true, channel: 'twilio', messageId: body?.sid ?? null, sentAt };
+        }
+        return providerFailure(
+          'twilio',
+          sentAt,
+          `Twilio HTTP ${statusCode}: ${body?.message ?? bodyText.slice(0, 200)}`,
+        );
+      } catch (err) {
+        return providerFailure('twilio', sentAt, `Twilio failed: ${err?.message ?? String(err)}`);
+      }
     },
   };
   return assertChannel(channel, 'twilio channel');
