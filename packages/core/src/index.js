@@ -236,3 +236,19 @@ export {
   runAlertCloseout,
   runWorkerTick,
 } from './closeout.js';
+export {
+  GRADES,
+  VERDICT_GOOD_DEAL_MAX,
+  VERDICT_OVERPRICED_MIN,
+  VERDICT_LABELS,
+  normalizeGrade,
+  betterGrade,
+  worseGrade,
+  medianOf,
+  summarizeMarketplaceStats,
+  referenceMedian,
+  verdictForAskingPrice,
+  adjacentGradeVerdicts,
+  checkPressingMatch,
+  watchRuleFromVerdict,
+} from './price-verdict.js';
