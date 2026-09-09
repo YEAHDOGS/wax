@@ -29,6 +29,7 @@
  */
 
 import { store as defaultStore, newId } from './store.js';
+import { renderAlertHistory } from './alert-history.js';
 
 /**
  * An error carrying the HTTP status it should become.
@@ -314,6 +315,26 @@ export function alertCounts(token, { store = defaultStore } = {}) {
     missed: of('missed'),
     unread: rows.filter((a) => a.read_at === null).length,
   };
+}
+
+/**
+ * The alert history page, as a standalone static HTML document.
+ *
+ * The renderer is pure (`alert-history.js`); this handler is the route's half
+ * of the wiring — it resolves the session to a user and hands the finished
+ * page to the `/api/alerts/history` adapter. Unknown `?state=` values fall
+ * back to `all` inside the renderer, same as the filter row behaves.
+ *
+ * @param {?string} token
+ * @param {object} [query]
+ * @param {import('./types.js').AlertState|'all'} [query.state] Filter, default all.
+ * @param {object} [deps]
+ * @param {typeof defaultStore} [deps.store]
+ * @returns {string} A complete HTML document.
+ */
+export function alertHistory(token, { state = 'all' } = {}, { store = defaultStore } = {}) {
+  const user = requireUser(token, { store });
+  return renderAlertHistory(store, user.id, { state });
 }
 
 /**
