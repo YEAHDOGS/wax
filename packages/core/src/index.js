@@ -25,6 +25,10 @@
  * |               | snapshot persistence, adaptive backoff, scan log, and the   |
  * |               | alert feed into the notify path. Fetcher is injected —     |
  * |               | zero network I/O here.                                      |
+ * | `fetcher.js`  | Real HTTP fetcher (plan §2): WaxBot user-agent, robots.txt   |
+ * |               | + crawl-delay, per-host politeness, adaptive backoff,     |
+ * |               | per-method parsers. The production `fetcher` for the       |
+ * |               | worker above; transport is injectable for tests.          |
  * | `dashboard.js`| Watchlist status view (plan §4 item 6): artists, sites,    |
  * |               | alerts as plain text. Pure render — see `bin/wax`.         |
  *
@@ -85,6 +89,24 @@ export {
   runScanPass,
 } from './poller.js';
 export { renderDashboard } from './dashboard.js';
+export {
+  createHttpFetcher,
+  RobotsDisallowedError,
+  parseRobots,
+  robotsAllows,
+  parseShopifyProducts,
+  parseFeedItems,
+  parseJsonLdProducts,
+  parseSitemapUrls,
+  parseHeuristicCards,
+  FETCH_TIMEOUT_MS,
+  FETCH_MAX_BYTES,
+  FETCH_MAX_REDIRECTS,
+  DEFAULT_POLITENESS_SECS,
+  ROBOTS_CACHE_TTL_MS,
+  BACKOFF_BASE_MS,
+  BACKOFF_MAX_MS,
+} from './fetcher.js';
 export {
   normalizeProduct,
   normalizeProductList,
