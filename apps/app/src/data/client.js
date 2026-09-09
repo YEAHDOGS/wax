@@ -182,9 +182,9 @@ export const api = {
   alerts(state = 'all') {
     return isRemote
       ? remote(`/api/alerts?state=${encodeURIComponent(state)}`)
-      : local(() => ({
-          alerts: core.listAlerts(token, { state }),
-          counts: core.alertCounts(token),
+      : local(async () => ({
+          alerts: await core.listAlerts(token, { state }),
+          counts: await core.alertCounts(token),
         }));
   },
 
@@ -211,7 +211,7 @@ export const api = {
 
   /** The collection. */
   crate() {
-    return isRemote ? remote('/api/crate') : local(() => ({ crate: core.listCrate(token) }));
+    return isRemote ? remote('/api/crate') : local(async () => ({ crate: await core.listCrate(token) }));
   },
 
   /**
@@ -236,7 +236,7 @@ export const api = {
 
   /** Standing watch instructions. */
   watches() {
-    return isRemote ? remote('/api/watches') : local(() => ({ watches: core.listWatches(token) }));
+    return isRemote ? remote('/api/watches') : local(async () => ({ watches: await core.listWatches(token) }));
   },
 
   /**
@@ -274,7 +274,7 @@ export const api = {
   tracks() {
     return isRemote
       ? remote('/api/tracks')
-      : local(() => ({ tracks: core.listTracks({ streamBase: null }) }));
+      : local(async () => ({ tracks: await core.listTracks({ streamBase: null }) }));
   },
 
   /**
