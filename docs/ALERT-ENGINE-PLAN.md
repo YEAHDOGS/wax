@@ -168,6 +168,38 @@ same transparency pattern as DOGS Remote's attempt log.
      `packages/core/test-store-postgres.mjs` (16 tests: guards, table map,
      full Collection contract, injection resistance, JSON-safety, store
      helpers).
+   - **BUILT (2026-09-09, jack/wax-postgres-pipeline):** the await-pass for
+     the worker pipeline — every store call in the per-minute cron path is
+     now awaited: `poller.js` (`watchedArtists`, `sentThisWindow`,
+     `recordScanLog`, `failSource`, `succeedSource`, `buildAlerts`,
+     `runScanPass`), `alert-persistence.js` (`loadPrevStates`,
+     `savePrevStates`, `restoreQueueSeen`, `recordAlert`),
+     `digest.js` (`queueHeldAlerts`, `flushDigestQueue`), `dispatch.js`
+     (`dispatchScanAlerts`), `rules.js` (`alreadyAlerted`, `routeAlert`,
+     `routeAlerts`), `closeout.js` (`filterAlreadyAlerted`), and the
+     dispatcher's `persistence.recordAlert`. `createAlertScheduler` no
+     longer loads durable state in its constructor — the async
+     `loadPrevStates` runs lazily on the first tick. `resolveStore()`
+     (new `packages/core/src/store-resolve.js`, exported from `@wax/core`)
+     wires boot: `DATABASE_URL` set → `createPostgresStore` over a lazily
+     loaded `pg` client (connected before the store is returned; a missing
+     driver is a loud install-hint error, never a silent demo fallback);
+     unset → the in-memory store, unchanged. `bin/wax` (`alert dispatch`,
+     `billing sweep`, `status`) resolves its store at boot via
+     `resolveStore()`, inert here since `DATABASE_URL` is unset. Pinned by
+     `packages/core/test-async-store-pipeline.mjs` (5 tests: an
+     `asAsyncStore` shim proving the full worker tick, the restart recipe,
+     and dispatch behave identically against a promise-returning store —
+     it caught a real missed `await` in `runScanPass` on the first run)
+     and `packages/core/test-store-resolve.mjs` (4 tests: memory default,
+     Postgres boot with an injected fake driver, loud driver failures).
+     Full core suite: 328/328 green.
+   - **NEXT:** the `pg` install (Brando's call — default-deny means the
+     machine never installs it unprompted), then the same mechanical await
+     pass for the HTTP/API layer (`handlers.js`, `subscriptions.js`,
+     `tracking.js`, `billing.js`, `api/*`) so the serverless routes can
+     run on Postgres too. The engine cron path is done; the API path is
+     the remaining surface.
    - **BUILT (2026-09-09, jack/wax-alert-engine):** tick scheduler —
      `packages/core/src/alert-scheduler.js` (`createAlertScheduler`)
      hooks `runEngine` into the wantlist batch path: each tick pulls a
