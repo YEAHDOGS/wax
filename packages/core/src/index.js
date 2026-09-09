@@ -182,6 +182,12 @@ export {
 } from './alert-queue.js';
 export { createAlertScheduler } from './alert-scheduler.js';
 export {
+  ENGINE_STATE_KEY_SEP,
+  ENGINE_TO_ALERT_KIND,
+  splitEngineKey,
+  createAlertPersistence,
+} from './alert-persistence.js';
+export {
   SEND_WIRING,
   createDisabledResendAdapter,
   createDisabledTwilioAdapter,

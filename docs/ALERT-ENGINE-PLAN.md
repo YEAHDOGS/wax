@@ -106,6 +106,26 @@ same transparency pattern as DOGS Remote's attempt log.
      (10), `test-send-adapters.mjs` (10).
    - **NEXT:** persist `prevStates` + the queue's seen-set in Postgres with
      the `alerts` table.
+   - **BUILT (2026-09-09, jack/wax-alert2):** engine-state persistence —
+     `packages/core/src/alert-persistence.js` (`createAlertPersistence`):
+     `savePrevStates`/`loadPrevStates` upsert `runEngine`'s prior-state map
+     into the store's new `engineStates` collection (DDL in
+     `schema.sql` as `engine_state`, typedef in `types.js` — one key per
+     user+release, garbage keys never persisted), `restoreQueueSeen(queue)`
+     replays dispatched `alerts` rows into the queue's seen-set (via the
+     new `queue.markSeen`), and `recordAlert` writes durable `alerts` rows
+     with the engine→board kind mapping (new→drop, price_drop→price,
+     restock→restock). The scheduler takes an optional `persistence`:
+     loads durable states before the first tick, upserts after every tick,
+     and throws on save failure (loud beats a re-alert flood). Restart
+     recipe: `restoreQueueSeen(queue)` → scheduler with `persistence` →
+     an unchanged batch stays quiet, a price drop still fires exactly
+     once. Works against the store interface, so the in-memory store gets
+     it today and Postgres gets it free when `store.js` is swapped. Pinned
+     by `packages/core/test-alert-persistence.mjs` (12 tests).
+   - **NEXT:** the actual Postgres `store.js` swap (live DB + `pg` driver)
+     — needs Brando's call on hosting; everything above is written to make
+     that swap a one-file change.
    - **BUILT (2026-09-09, jack/wax-alert-engine):** tick scheduler —
      `packages/core/src/alert-scheduler.js` (`createAlertScheduler`)
      hooks `runEngine` into the wantlist batch path: each tick pulls a
