@@ -21,6 +21,8 @@
  * | `notify.js`   | Alert delivery content (plan §3): drop email/SMS            |
  * |               | formatting, digest folding, per-user rate-limit gate.      |
  * |               | Pure decision logic — providers wire up later.             |
+ * | `dashboard.js`| Watchlist status view (plan §4 item 6): artists, sites,    |
+ * |               | alerts as plain text. Pure render — see `bin/wax`.         |
  *
  * Two consumers import from here and they get identical behaviour:
  *
@@ -64,6 +66,7 @@ export {
   SMS_PER_HOUR_CAP,
   EMAIL_PER_HOUR_CAP,
 } from './notify.js';
+export { renderDashboard } from './dashboard.js';
 export {
   normalizeProduct,
   normalizeProductList,
