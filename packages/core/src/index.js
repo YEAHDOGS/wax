@@ -68,6 +68,7 @@ export {
 } from './billing.js';
 export { store, createStore, newId, newToken } from './store.js';
 export { createPostgresStore, sqlCollection, POSTGRES_TABLES } from './store-postgres.js';
+export { resolveStore } from './store-resolve.js';
 export { seed } from './seed.js';
 export { TYPES_VERSION } from './types.js';
 export { probeScannability, PROBE_METHODS, PROBE_FAILURE_REASONS } from './probe.js';
