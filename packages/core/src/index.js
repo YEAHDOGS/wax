@@ -108,6 +108,7 @@ export {
   subscribeAlertChannel,
   confirmAlertSubscription,
   unsubscribeAlertChannel,
+  buildUnsubscribeUrl,
 } from './subscriptions.js';
 export { renderAlertHistory } from './alert-history.js';
 export { renderAlertDetail } from './alert-detail.js';

@@ -290,6 +290,47 @@ export function confirmAlertSubscription(token, { store = defaultStore } = {}) {
 }
 
 /**
+ * Build the one-click unsubscribe URL that rides in alert emails as the
+ * `List-Unsubscribe` header (RFC 2369) with `List-Unsubscribe-Post:
+ * List-Unsubscribe=One-Click` (RFC 8058). The confirm token doubles as
+ * the unsubscribe token, so the URL points at the same
+ * `POST /api/alerts/unsubscribe` endpoint — email clients POST to it
+ * with an empty body and the token in the query string, which that route
+ * accepts (see `api/alerts/unsubscribe.js`).
+ *
+ * Throws on a non-http(s) base or an empty token: a broken unsubscribe
+ * link in a bulk email is a deliverability incident, not a cosmetic
+ * issue — Gmail and Outlook both require working List-Unsubscribe.
+ *
+ * @param {string} baseUrl Absolute http(s) URL of the unsubscribe endpoint,
+ *   e.g. `https://wax.wearedogs.net/api/alerts/unsubscribe`.
+ * @param {string} token The subscription's confirm token.
+ * @returns {string} `baseUrl?token=<encoded token>` (appends `&token=` if
+ *   the base already carries a query string).
+ */
+export function buildUnsubscribeUrl(baseUrl, token) {
+  if (typeof baseUrl !== 'string' || !baseUrl) {
+    throw new TypeError(`buildUnsubscribeUrl needs an absolute http(s) base URL, got ${String(baseUrl)}`);
+  }
+  let parsed;
+  try {
+    parsed = new URL(baseUrl);
+  } catch {
+    throw new TypeError(`buildUnsubscribeUrl needs an absolute URL, got ${JSON.stringify(baseUrl)}`);
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new TypeError(
+      `buildUnsubscribeUrl refuses the ${parsed.protocol} scheme — only http(s) may carry an unsubscribe link`,
+    );
+  }
+  if (typeof token !== 'string' || !token) {
+    throw new TypeError('buildUnsubscribeUrl needs a non-empty unsubscribe token');
+  }
+  const sep = parsed.search ? '&' : '?';
+  return `${parsed.toString()}${sep}token=${encodeURIComponent(token)}`;
+}
+
+/**
  * Cancel alert subscriptions. Identify by confirm token (one-click from a
  * message) or by email/phone + filter. Cancels every matching pending or
  * active subscription.
