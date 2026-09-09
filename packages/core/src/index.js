@@ -12,6 +12,9 @@
  * | `handlers.js` | Every read and write, as plain functions.                |
  * | `probe.js`    | Scannability probe (alert engine gate 1). Pure decision    |
  * |               | logic, zero network I/O.                                  |
+ * | `scanner.js`  | Scan loop core (alert engine gate 2): normalize product     |
+ * |               | lists, snapshot hashing, diffing, artist matching,         |
+ * |               | cross-source dedupe. Pure logic, zero network I/O.        |
  *
  * Two consumers import from here and they get identical behaviour:
  *
@@ -38,3 +41,12 @@ export { store, createStore, newId, newToken } from './store.js';
 export { seed } from './seed.js';
 export { TYPES_VERSION } from './types.js';
 export { probeScannability, PROBE_METHODS, PROBE_FAILURE_REASONS } from './probe.js';
+export {
+  normalizeProduct,
+  normalizeProductList,
+  snapshotHash,
+  diffSnapshots,
+  scanSnapshot,
+  matchArtists,
+  dedupeCandidates,
+} from './scanner.js';
