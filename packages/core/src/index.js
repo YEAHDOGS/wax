@@ -43,6 +43,11 @@
  * |               | missing): `runWorkerTick` is the cron entry point — scan  |
  * |               | every due source, dispatch what may go, queue held        |
  * |               | deliveries into the digest queue, flush due digests.      |
+ * | `drop-scheduler.js` | Drop-alert scheduler (plan §3): decides which (user,     |
+ * |               | release) alerts are due from tracked releases + alert      |
+ * |               | rules — in-batch dedupe, cooldown window — and hands the   |
+ * |               | due ones to the pure DISPATCH boundary (with a           |
+ * |               | TEST-MODE stub for tests). Zero network I/O.              |
  *
  * Two consumers import from here and they get identical behaviour:
  *
@@ -209,6 +214,13 @@ export {
   composeDispatchMessage,
   createAlertDispatcher,
 } from './alert-dispatcher.js';
+export {
+  DROP_DEFAULT_COOLDOWN_MS,
+  dropDedupeKey,
+  dropReleaseProduct,
+  createTestDispatch,
+  createDropScheduler,
+} from './drop-scheduler.js';
 export {
   DIGEST_MIN_INTERVAL_MS,
   DIGEST_MAX_AGE_MS,
