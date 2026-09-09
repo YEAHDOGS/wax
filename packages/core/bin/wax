@@ -11,8 +11,11 @@
  *     → sweep expired trials back to `free`. Run on a schedule (hourly is
  *       plenty); idempotent. `--json` prints a machine-readable summary.
  *
- * Runs entirely against the seeded demo store and the Discogs-shaped
- * fixtures: no network, no credentials, nothing leaves the machine.
+ * Resolves its store at boot via `resolveStore()`: `DATABASE_URL` set
+ * means Postgres (the alert-engine worker path is fully async-store-safe),
+ * otherwise the seeded demo store. The Discogs-shaped fixtures stand in
+ * for the live probe: no network, no credentials, nothing leaves the
+ * machine.
  *
  * Dispatch mode defaults to DRY-RUN (the printing adapter): it shows
  * exactly what would be sent and records dry-run delivery-log rows.
@@ -26,7 +29,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  createStore,
+  resolveStore,
   renderDashboard,
   createAlertQueue,
   createAlertScheduler,
@@ -44,10 +47,10 @@ const [cmd, sub, ...rest] = process.argv.slice(2);
 if (cmd === 'alert' && sub === 'dispatch') {
   await runAlertDispatch(rest);
 } else if (cmd === 'billing' && sub === 'sweep') {
-  runBillingSweep(rest);
+  await runBillingSweep(rest);
 } else {
   const userId = cmd ?? 'usr_test';
-  const store = createStore();
+  const { store } = await resolveStore();
   process.stdout.write(`${renderDashboard(store, userId)}\n`);
 }
 
@@ -60,10 +63,10 @@ async function runAlertDispatch(flags) {
   const WANTS = load('wantlist.json').wants;
   const RELEASES = load('discogs-releases.json').releases;
 
-  const store = createStore();
+  const { store, backend } = await resolveStore();
   const queue = createAlertQueue();
   const persistence = createAlertPersistence(store);
-  persistence.restoreQueueSeen(queue);
+  await persistence.restoreQueueSeen(queue);
 
   const scheduler = createAlertScheduler({
     getReleases: () => RELEASES,
@@ -78,7 +81,7 @@ async function runAlertDispatch(flags) {
     live
       ? { default: adapters.email, email: adapters.email, sms: adapters.sms }
       : {};
-  const dispatchedBefore = new Set(store.alerts.all().map((r) => r.id));
+  const dispatchedBefore = new Set((await store.alerts.all()).map((r) => r.id));
   const dispatcher = createAlertDispatcher({
     queue,
     persistence,
@@ -90,7 +93,7 @@ async function runAlertDispatch(flags) {
   const report = await dispatcher.dispatchAll({ limit });
 
   const mode = dryRun ? 'dry-run (nothing is sent)' : 'LIVE (NOT WIRED stubs without keys)';
-  process.stdout.write(`[wax] alert dispatch — ${mode}\n`);
+  process.stdout.write(`[wax] alert dispatch — ${mode} — store: ${backend}\n`);
   process.stdout.write(`  tick: ${tick.queued.length} queued, ${tick.dupes.length} dupes, ${tick.capped.length} capped\n`);
   process.stdout.write(`  drained: ${report.drained} → delivered: ${report.delivered.length}, failed: ${report.failed.length}\n`);
   if (report.failed.length > 0) {
@@ -98,8 +101,7 @@ async function runAlertDispatch(flags) {
       process.stdout.write(`    x ${f.event?.user_id} / ${f.event?.release_id}: ${f.receipt?.error ?? 'unknown'} (${f.attempts} attempts)\n`);
     }
   }
-  const rows = store.alerts
-    .all()
+  const rows = (await store.alerts.all())
     .filter((r) => r.dispatched_at != null && !dispatchedBefore.has(r.id))
     .sort((a, b) => String(a.dispatched_at).localeCompare(String(b.dispatched_at)));
   if (rows.length > 0) {
@@ -116,14 +118,13 @@ async function runAlertDispatch(flags) {
  * `wax billing sweep` — expire past-due trials back to `free`.
  *
  * The sweeper lives in `billing.js` (`expireTrials`) and is documented as
- * run-on-a-schedule; this is the cron's entry point. Runs against the seeded
- * demo store here (production swaps `createStore()` for the Postgres store
- * the same way every other module does — see the plan's Postgres note).
- * Idempotent: sweeping twice changes nothing the second time. `--json`
- * prints `{"expired": N}` for cron logs.
+ * run-on-a-schedule; this is the cron's entry point. Resolves its store at
+ * boot via `resolveStore()` (DATABASE_URL → Postgres, else the seeded demo
+ * store). Idempotent: sweeping twice changes nothing the second time.
+ * `--json` prints `{"expired": N}` for cron logs.
  */
-function runBillingSweep(flags) {
-  const store = createStore();
+async function runBillingSweep(flags) {
+  const { store } = await resolveStore();
   const expired = expireTrials({ store });
   if (flags.includes('--json')) {
     process.stdout.write(`${JSON.stringify({ expired })}\n`);
