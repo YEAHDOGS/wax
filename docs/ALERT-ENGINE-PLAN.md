@@ -112,12 +112,34 @@ same transparency pattern as DOGS Remote's attempt log.
     Pinned by `packages/core/test-drop-scheduler.mjs` (12 tests: rule
     matching, price gating, in-batch dedupe, cooldown suppression +
     expiry, failure retry, restart recipe, stub recording).
-  - **NEXT:** wire the scheduler's cooldown map to the durable `alerts`
-    rows at boot (the store's `alerts` table has `release_id` and
-    `dispatched_at` — `restoreSent` takes those rows directly), and hang
-    the per-minute cron's `runPass({ releases, rules, dispatch })` off the
-    board path so tracked-release drops flow through the same dispatch
-    receipts as the scan path.
+  - **BUILT (2026-09-09, jack/wax-api-await):** the board-path cron
+    hookup — `packages/core/src/drop-cron.js` (`createDropCron`) hangs
+    the drop scheduler's `runPass` between the tracked-release board
+    and the DISPATCH boundary. The join the pure scheduler cannot do
+    itself lives here: `loadBoard()` hydrates store `releases` rows
+    (`artist_id`) and `watches` rows (`artist_id`) through the
+    `artists` collection into the artist-name / `rule.artist`
+    shapes `evaluateWatchRule` speaks — one rule implementation for
+    every path, so the board can never disagree with the scan path.
+    Watches whose `artist_id` resolves to nothing land in a `skipped`
+    report (loud, never silently dropped). `boot()` replays durable
+    `alerts` rows (`{ user_id, release_id, dispatched_at }`) into the
+    cooldown map via `restoreSent` — the exact restart recipe: a
+    restart never re-alerts. `runDropPass()` runs one tick, and every
+    `{ ok: true }` delivery is persisted through
+    `persistence.recordAlert` (rule channels, kind `drop`) — the same
+    rows the next boot replays; refusals and throws leave no row and
+    no cooldown mark, so the next pass retries. All store reads are
+    awaited (Postgres-safe); a cron with no dispatch boundary refuses
+    loudly instead of pretending it sent. Exported from `@wax/core`.
+    Pinned by `packages/core/test-drop-cron.mjs` (7 tests: artist
+    join, orphan-watch reporting, end-to-end deliver + durable row,
+    restart recipe, failure retry, missing-boundary refusal, price
+    gating). Full core suite: 352/352 green (31 files).
+  - **NEXT:** hang `runDropPass` in the per-minute cron worker
+    (a `wax alert drop-pass [--dry-run] [--live]` CLI entry mirroring
+    `alert dispatch`), so the tick runs on a schedule instead of only
+    in tests.
 - Alert content: artist, title, price, source link, "buy" deep link.
 - Per-user rate limit so a restock flood doesn't send 40 texts.
 
