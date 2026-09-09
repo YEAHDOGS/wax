@@ -185,6 +185,24 @@ same transparency pattern as DOGS Remote's attempt log.
      under `packages/core/fixtures/` — no live API calls. Pinned by
      `packages/core/test-alert-engine.mjs` (7 tests), `test-alert-queue.mjs`
      (10), `test-send-adapters.mjs` (10).
+   - **BUILT (2026-09-09, jack/wax-collection-seed):** the collection
+     ingestion adapter — `packages/core/src/collection-batch.js`
+     (`mapCollectionEntry`, `collectionToBatch`, `createCollectionProvider`),
+     exported from `@wax/core`. Converts Discogs collection-folder payloads
+     (`/users/{username}/collection/folders/0/releases`) into engine-shaped
+     release batches, so the scheduler's `getReleases()` can run ticks
+     against a user's owned collection (restock/price-drop detection on
+     records they already own — Crate Digger seed data too). Malformed
+     entries skip loudly (`{ index, reason }` report, never silently
+     dropped); non-collection payloads throw; Wax-only entry annotations
+     (`price_cents`, `in_stock`) keep engine price/restock semantics
+     exercisable against collection-shaped rows, staying null when absent.
+     Ships a synthetic `dcruzship-collection.json` fixture (8 entries,
+     Brando-flavored — NOT real collection data, no token, no network).
+     Pinned by `packages/core/test-collection-batch.mjs` (8 tests:
+     mapping, loud skips, throw-on-bad-payload, engine new→quiet,
+     price_drop fires once, scheduler tick wiring, `onSkipped`). Full core
+     suite: 376/376 green (34 files).
    - **NEXT:** persist `prevStates` + the queue's seen-set in Postgres with
      the `alerts` table.
    - **BUILT (2026-09-09, jack/wax-alert2):** engine-state persistence —
