@@ -300,6 +300,7 @@ export const users = [
     display_name: 'Marisol Vega', avatar_url: null,
     plan: 'free', trial_ends_at: null,
     phone: null, phone_verified: false, email_verified: true,
+    quiet_hours_start: '22:00', quiet_hours_end: '07:00',
     created_at: ago(210 * DAY),
   },
   {
@@ -359,6 +360,7 @@ export const watches = [
   {
     id: 'wch_bt', user_id: 'usr_test', artist_id: 'art_bt',
     watch_vinyl: true, merch_types: ['test-pressing'], target_price_cents: 12000,
+    title_contains: 'test press', label_contains: null,
     channels: ['email', 'sms', 'push'], created_at: ago(90 * DAY),
   },
   {

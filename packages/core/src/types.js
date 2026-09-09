@@ -75,6 +75,9 @@
  * @property {?string}   phone          E.164. Present does not mean usable — see below.
  * @property {boolean}   phone_verified An SMS dispatch requires this to be true.
  * @property {boolean}   email_verified An email dispatch requires this to be true.
+ * @property {?string}   quiet_hours_start "HH:MM" UTC; alerts inside the quiet
+ *           window defer to the digest. Null disables quiet hours.
+ * @property {?string}   quiet_hours_end   "HH:MM" UTC, exclusive bound.
  * @property {Timestamp} created_at
  */
 
@@ -271,6 +274,8 @@
  * @property {boolean}   watch_vinyl        Alert on any new vinyl pressing.
  * @property {string[]}  merch_types        e.g. `['tee', 'poster']`. Empty means vinyl only.
  * @property {?Cents}    target_price_cents Alert when any listing crosses below this.
+ * @property {?string}   title_contains Substring that must appear in the title.
+ * @property {?string}   label_contains Substring that must appear in the label.
  * @property {Channel[]} channels
  * @property {Timestamp} created_at
  */
