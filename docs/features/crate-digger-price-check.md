@@ -9,6 +9,13 @@ Collector holds a record. They want one verdict in under 10 seconds:
 **live market median, the condition-driven spread, and Good deal / Fair /
 Overpriced against the asking price.**
 
+## Non-negotiable: no login
+
+Open the app, scan, get the verdict. No account, no signup wall, no
+"create an account to continue" — ever. Crate Digger works for the person
+holding the record, not for a user database. (Brandon, 2026-09-09:
+"I love apps with no login. Just let me use the fucking app.")
+
 ## Example (real data, 2026-09-09)
 
 Snoop Dogg — Doggystyle, original US 1993 pressing (cat# 92279-1).
