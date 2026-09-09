@@ -207,10 +207,26 @@ same transparency pattern as DOGS Remote's attempt log.
      no account needed to subscribe. Pinned by
      `packages/core/test-subscription-routes.mjs` (26 tests: happy path,
      idempotency, validation, never-throw delivery, adapter mapping).
-   - **NEXT:** wire List-Unsubscribe / List-Unsubscribe-Post headers into the
-     Resend adapter once live sends begin (needs Brando's `RESEND_API_KEY`);
-     add the per-address subscribe throttle counters alongside the
-     Postgres migration of `alert_subscriptions`.
+   - **BUILT (2026-09-09, jack/wax-list-unsubscribe):** List-Unsubscribe /
+     List-Unsubscribe-Post wiring — `createResendChannel` takes an optional
+     `unsubscribeUrl` (a static http(s) URL, or a `(envelope) => ?string`
+     resolver for per-recipient links); when set, every email payload
+     carries `headers: { 'List-Unsubscribe': '<url>',
+     'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' }` per
+     RFC 2369 / RFC 8058. A set-but-malformed URL refuses the send as
+     `{ ok: false }` before any socket opens — Gmail/Outlook require a
+     working unsubscribe on bulk mail, so a bad value is a loud refusal,
+     never a silent send. `buildUnsubscribeUrl(baseUrl, token)` (exported
+     from `@wax/core`) builds the tokenized URL, http(s)-only. The
+     dispatcher threads `event.unsubscribe_token` into the send envelope,
+     so the resolver form can call `buildUnsubscribeUrl(endpoint,
+     envelope.unsubscribe_token)` per recipient. And `POST
+     /api/alerts/unsubscribe` now accepts `?token=` from the query string
+     (body still wins) — that's the actual one-click path, since email
+     clients POST the List-Unsubscribe URL with an empty body.
+   - **NEXT (unchanged):** the actual live sends still wait on Brando's
+     `RESEND_API_KEY`; add the per-address subscribe throttle counters
+     alongside the Postgres migration of `alert_subscriptions`.
 
 ## 5. Free-tier mapping
 
