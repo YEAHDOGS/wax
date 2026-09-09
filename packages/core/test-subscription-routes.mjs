@@ -385,3 +385,39 @@ test('adapter: wrong methods get a 405 naming the allowed ones', async () => {
   const post = await call(confirmRoute, fakeReq({ method: 'POST', body: {} }));
   assert.equal(post.status, 405);
 });
+
+test('adapter: POST /api/alerts/unsubscribe honors ?token= with an empty body (RFC 8058 one-click)', async () => {
+  const created = await call(subscribeRoute, fakeReq({
+    body: { email: 'oneclick@example.com', channel: 'email' },
+  }));
+  const token = created.body.confirm_token;
+  // Real one-click POSTs from email clients carry no body — Vercel hands the
+  // route an empty object; the token rides the URL.
+  const { status, body } = await call(unsubscribeRoute, fakeReq({
+    query: { token },
+    body: {},
+  }));
+  assert.equal(status, 200);
+  assert.deepEqual(body, { ok: true, unsubscribed: 1 });
+});
+
+test('adapter: ?token= with a garbage token is still a 404, not a 200', async () => {
+  const { status, body } = await call(unsubscribeRoute, fakeReq({
+    query: { token: 'tok_nonexistent' },
+    body: {},
+  }));
+  assert.equal(status, 404);
+  assert.equal(body.error, 'not_found');
+});
+
+test('adapter: body token wins over ?token= when both are present', async () => {
+  const created = await call(subscribeRoute, fakeReq({
+    body: { email: 'bodywins@example.com', channel: 'email' },
+  }));
+  const { status, body } = await call(unsubscribeRoute, fakeReq({
+    query: { token: 'tok_nonexistent' },
+    body: { token: created.body.confirm_token },
+  }));
+  assert.equal(status, 200);
+  assert.deepEqual(body, { ok: true, unsubscribed: 1 });
+});

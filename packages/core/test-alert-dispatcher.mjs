@@ -400,3 +400,25 @@ test('default address resolution: explicit to wins, then the store user row', as
   await run(makeEvent({ user_id: 'u_nobody' }));
   assert.deepEqual(seen, ['direct@example.com', 'test@wax.fm', null]);
 });
+
+test('dispatcher threads event.unsubscribe_token into the envelope for per-recipient unsubscribe links', async () => {
+  const seen = [];
+  const capture = {
+    name: 'cap',
+    kind: 'email',
+    async send(envelope) {
+      seen.push(envelope.unsubscribe_token);
+      return { ok: true, channel: 'cap', messageId: 'x', sentAt: iso() };
+    },
+  };
+  const run = async (event) => {
+    const queue = makeQueueWith([event]);
+    const dispatcher = createAlertDispatcher({
+      queue, store: createStore(), now, dryRun: false, adapters: { default: capture },
+    });
+    await dispatcher.dispatchAll();
+  };
+  await run(makeEvent({ unsubscribe_token: 'tok_per_recipient' }));
+  await run(makeEvent({}));
+  assert.deepEqual(seen, ['tok_per_recipient', null]);
+});

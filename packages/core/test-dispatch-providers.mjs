@@ -19,6 +19,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import {
+  buildUnsubscribeUrl,
   createResendChannel,
   createTwilioChannel,
   dispatchAlert,
@@ -305,4 +306,147 @@ test('dispatchAlert: failing Resend + healthy Twilio — one failure receipt, on
     resendStub.server.close();
     twilioStub.server.close();
   }
+});
+
+/* ------------------------------------------------------------------ *
+ * List-Unsubscribe wiring (ALERT-ENGINE-PLAN.md §3, RFC 2369 + RFC 8058)
+ * ------------------------------------------------------------------ */
+
+test('resend: List-Unsubscribe headers ride the payload when unsubscribeUrl is set', async () => {
+  const { server, received, baseUrl } = await startResendStub();
+  try {
+    const channel = createResendChannel({
+      apiKey: 're_test_stub_key',
+      from: 'alerts@wax.wearedogs.net',
+      baseUrl,
+      unsubscribeUrl: 'https://wax.wearedogs.net/api/alerts/unsubscribe?token=tok_123',
+    });
+    const receipt = await channel.send({
+      alert: null,
+      channel: 'email',
+      to: 'fan@example.com',
+      message: { subject: 'New drop', text: 'New drop on Wax.' },
+      nowMs: T0,
+    });
+    assert.equal(receipt.ok, true);
+    assert.deepEqual(received[0].body.headers, {
+      'List-Unsubscribe': '<https://wax.wearedogs.net/api/alerts/unsubscribe?token=tok_123>',
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    });
+  } finally {
+    server.close();
+  }
+});
+
+test('resend: no headers key when unsubscribeUrl is not configured', async () => {
+  const { server, received, baseUrl } = await startResendStub();
+  try {
+    const channel = createResendChannel({
+      apiKey: 're_test_stub_key',
+      from: 'alerts@wax.wearedogs.net',
+      baseUrl,
+    });
+    const receipt = await channel.send({
+      alert: null,
+      channel: 'email',
+      to: 'fan@example.com',
+      message: { subject: 's', text: 't' },
+      nowMs: T0,
+    });
+    assert.equal(receipt.ok, true);
+    assert.equal('headers' in received[0].body, false, 'payload shape unchanged without unsubscribeUrl');
+  } finally {
+    server.close();
+  }
+});
+
+test('resend: unsubscribeUrl as a function resolves per-send from envelope.unsubscribe_token', async () => {
+  const { server, received, baseUrl } = await startResendStub();
+  try {
+    const channel = createResendChannel({
+      apiKey: 're_test_stub_key',
+      from: 'alerts@wax.wearedogs.net',
+      baseUrl,
+      unsubscribeUrl: (envelope) =>
+        envelope?.unsubscribe_token
+          ? buildUnsubscribeUrl('https://wax.wearedogs.net/api/alerts/unsubscribe', envelope.unsubscribe_token)
+          : null,
+    });
+    const receipt = await channel.send({
+      alert: null,
+      channel: 'email',
+      to: 'fan@example.com',
+      message: { subject: 's', text: 't' },
+      unsubscribe_token: 'tok_abc+def',
+      nowMs: T0,
+    });
+    assert.equal(receipt.ok, true);
+    assert.equal(
+      received[0].body.headers['List-Unsubscribe'],
+      '<https://wax.wearedogs.net/api/alerts/unsubscribe?token=tok_abc%2Bdef>',
+    );
+    assert.equal(received[0].body.headers['List-Unsubscribe-Post'], 'List-Unsubscribe=One-Click');
+  } finally {
+    server.close();
+  }
+});
+
+test('resend: malformed List-Unsubscribe URL refuses the send before any network', async () => {
+  const { server, received, baseUrl } = await startResendStub();
+  try {
+    for (const bad of ['javascript:alert(1)', 'ftp://evil.example/unsub', 'relative/path']) {
+      const channel = createResendChannel({
+        apiKey: 're_test_stub_key',
+        from: 'alerts@wax.wearedogs.net',
+        baseUrl,
+        unsubscribeUrl: bad,
+      });
+      const receipt = await channel.send({
+        alert: null,
+        channel: 'email',
+        to: 'fan@example.com',
+        message: { subject: 's', text: 't' },
+        nowMs: T0,
+      });
+      assert.equal(receipt.ok, false, `expected refusal for ${JSON.stringify(bad)}`);
+      assert.match(receipt.error, /List-Unsubscribe/);
+    }
+    assert.equal(received.length, 0, 'no request may leave with a bad unsubscribe URL');
+  } finally {
+    server.close();
+  }
+});
+
+test('resend: unsubscribeUrl with the wrong type throws at construction', () => {
+  assert.throws(
+    () => createResendChannel({ apiKey: 're_test_stub_key', from: 'a@b.c', unsubscribeUrl: 42 }),
+    /unsubscribeUrl must be a URL string or a/,
+  );
+  assert.throws(
+    () => createResendChannel({ apiKey: 're_test_stub_key', from: 'a@b.c', unsubscribeUrl: { oops: 1 } }),
+    /unsubscribeUrl must be a URL string or a/,
+  );
+});
+
+test('buildUnsubscribeUrl: builds ?token=, appends &token= to an existing query, encodes the token', () => {
+  assert.equal(
+    buildUnsubscribeUrl('https://wax.wearedogs.net/api/alerts/unsubscribe', 'tok_123'),
+    'https://wax.wearedogs.net/api/alerts/unsubscribe?token=tok_123',
+  );
+  assert.equal(
+    buildUnsubscribeUrl('https://wax.wearedogs.net/api/alerts/unsubscribe', 'a b+c'),
+    'https://wax.wearedogs.net/api/alerts/unsubscribe?token=a%20b%2Bc',
+  );
+  assert.equal(
+    buildUnsubscribeUrl('https://wax.wearedogs.net/api/alerts/unsubscribe?src=email', 'tok_9'),
+    'https://wax.wearedogs.net/api/alerts/unsubscribe?src=email&token=tok_9',
+  );
+});
+
+test('buildUnsubscribeUrl: refuses non-http(s) schemes, relative URLs, and empty tokens', () => {
+  for (const bad of ['ftp://x.example/u', 'javascript:alert(1)', '/relative/path', '']) {
+    assert.throws(() => buildUnsubscribeUrl(bad, 'tok_1'), /absolute|scheme/, bad || '(empty)');
+  }
+  assert.throws(() => buildUnsubscribeUrl('https://wax.wearedogs.net/api/alerts/unsubscribe', ''), /token/);
+  assert.throws(() => buildUnsubscribeUrl('https://wax.wearedogs.net/api/alerts/unsubscribe', null), /token/);
 });
