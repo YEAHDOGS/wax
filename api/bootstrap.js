@@ -16,5 +16,5 @@ import { bootstrap } from '@wax/core';
 import { bearer, json, route } from './_lib/http.js';
 
 export default route({
-  GET: (req, res) => json(res, 200, bootstrap(bearer(req), { streamBase: '/api/stream' })),
+  GET: async (req, res) => json(res, 200, await bootstrap(bearer(req), { streamBase: '/api/stream' })),
 });

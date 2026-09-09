@@ -13,11 +13,11 @@ import { getRelease, listReleases } from '@wax/core';
 import { json, param, route } from './_lib/http.js';
 
 export default route({
-  GET: (req, res) => {
+  GET: async (req, res) => {
     const id = param(req, 'id');
-    if (id) return json(res, 200, getRelease(id));
+    if (id) return json(res, 200, await getRelease(id));
     return json(res, 200, {
-      releases: listReleases({
+      releases: await listReleases({
         artist_id: param(req, 'artist_id') ?? undefined,
         limit: Number(param(req, 'limit')) || undefined,
       }),

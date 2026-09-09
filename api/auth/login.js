@@ -20,6 +20,6 @@ import { json, readBody, route } from '../_lib/http.js';
 export default route({
   POST: async (req, res) => {
     const body = await readBody(req);
-    json(res, 200, login(body));
+    json(res, 200, await login(body));
   },
 });

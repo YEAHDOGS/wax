@@ -24,7 +24,7 @@ export default route({
     if (mode !== 'test' && mode !== 'live') {
       throw new ApiError(400, 'bad_mode', 'mode is "test" or "live".');
     }
-    json(res, 201, checkoutSession(bearer(req), {
+    json(res, 201, await checkoutSession(bearer(req), {
       mode,
       successUrl: body.success_url,
       cancelUrl: body.cancel_url,

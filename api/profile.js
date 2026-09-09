@@ -13,10 +13,10 @@ import { getProfile, updateProfile } from '@wax/core';
 import { bearer, json, param, readBody, route } from './_lib/http.js';
 
 export default route({
-  GET: (req, res) => json(res, 200, getProfile(bearer(req), param(req, 'handle') ?? undefined)),
+  GET: async (req, res) => json(res, 200, await getProfile(bearer(req), param(req, 'handle') ?? undefined)),
 
   PATCH: async (req, res) => {
     const patch = await readBody(req);
-    json(res, 200, updateProfile(bearer(req), patch));
+    json(res, 200, await updateProfile(bearer(req), patch));
   },
 });

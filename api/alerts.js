@@ -20,11 +20,11 @@ import { ApiError, alertCounts, catchAlert, listAlerts, markAlertRead } from '@w
 import { bearer, json, param, readBody, route } from './_lib/http.js';
 
 export default route({
-  GET: (req, res) => {
+  GET: async (req, res) => {
     const token = bearer(req);
     json(res, 200, {
-      alerts: listAlerts(token, { state: param(req, 'state') ?? 'all' }),
-      counts: alertCounts(token),
+      alerts: await listAlerts(token, { state: param(req, 'state') ?? 'all' }),
+      counts: await alertCounts(token),
     });
   },
 
@@ -35,9 +35,9 @@ export default route({
 
     switch (action) {
       case 'read':
-        return json(res, 200, markAlertRead(token, id));
+        return json(res, 200, await markAlertRead(token, id));
       case 'catch':
-        return json(res, 200, catchAlert(token, id, { condition, paid_cents }));
+        return json(res, 200, await catchAlert(token, id, { condition, paid_cents }));
       default:
         throw new ApiError(400, 'bad_action', `Unknown action "${action}". Use "read" or "catch".`);
     }

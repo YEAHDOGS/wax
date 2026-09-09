@@ -20,10 +20,10 @@ import { alertDetail, alertHistory } from '@wax/core';
 import { bearer, html, param, route } from '../_lib/http.js';
 
 export default route({
-  GET: (req, res) => {
+  GET: async (req, res) => {
     const token = bearer(req);
     const id = param(req, 'id');
-    if (id) return html(res, 200, alertDetail(token, id));
-    html(res, 200, alertHistory(token, { state: param(req, 'state') ?? 'all' }));
+    if (id) return html(res, 200, await alertDetail(token, id));
+    html(res, 200, await alertHistory(token, { state: param(req, 'state') ?? 'all' }));
   },
 });
