@@ -41,20 +41,20 @@ function freshUser() {
   return { store, artist, release };
 }
 
-test('empty watchlist renders with helpful empty states', () => {
+test('empty watchlist renders with helpful empty states', async () => {
   const { store } = freshUser();
-  const out = renderDashboard(store, 'usr_dash');
+  const out = await renderDashboard(store, 'usr_dash');
   assert.ok(out.includes('WAX — watchlist status'));
   assert.ok(out.includes('Artists watched (0)'));
   assert.ok(out.includes('Merch sites tracked (0)'));
   assert.ok(out.includes('Recent alerts (0 shown)'));
 });
 
-test('watched artists, sites, and alerts all appear in the view', () => {
+test('watched artists, sites, and alerts all appear in the view', async () => {
   const { store, artist, release } = freshUser();
   const session = store.createSession('usr_dash');
-  const watch = addWatch(session.token, { artist_id: artist.id }, { store });
-  addSource(session.token, { url: 'https://vinyl-den.example/new', label: 'Vinyl Den', html: SHOP_WITH_FEED }, { store });
+  const watch = await addWatch(session.token, { artist_id: artist.id }, { store });
+  await addSource(session.token, { url: 'https://vinyl-den.example/new', label: 'Vinyl Den', html: SHOP_WITH_FEED }, { store });
   store.alerts.insert({
     id: 'alr_dash', user_id: 'usr_dash', release_id: release.id, watch_id: watch.id,
     kind: 'drop', state: 'live',
@@ -63,29 +63,29 @@ test('watched artists, sites, and alerts all appear in the view', () => {
     created_at: '2026-09-09T10:00:00.000Z',
   });
 
-  const out = renderDashboard(store, 'usr_dash');
+  const out = await renderDashboard(store, 'usr_dash');
   assert.ok(out.includes('Alice Coltrane'));
   assert.ok(out.includes('Vinyl Den'));
   assert.ok(out.includes('scannable via feed'));
   assert.ok(out.includes('[live] drop — Alice Coltrane — Journey in Satchidananda ($34.99)'));
 });
 
-test('an unscannable site shows its reason, never a silent row', () => {
+test('an unscannable site shows its reason, never a silent row', async () => {
   const { store } = freshUser();
   const session = store.createSession('usr_dash');
-  addSource(session.token, {
+  await addSource(session.token, {
     url: 'https://flat.example/', html: '<html><body><p>hello</p></body></html>',
     accept_unscannable: true,
   }, { store });
-  const out = renderDashboard(store, 'usr_dash');
+  const out = await renderDashboard(store, 'usr_dash');
   assert.ok(out.includes('NOT scannable'));
   assert.ok(out.includes('no-product-structure'));
 });
 
-test('dashboard only shows the requesting user’s rows', () => {
+test('dashboard only shows the requesting user’s rows', async () => {
   const { store, artist } = freshUser();
   const session = store.createSession('usr_dash');
-  addWatch(session.token, { artist_id: artist.id }, { store });
-  const out = renderDashboard(store, 'usr_test');
+  await addWatch(session.token, { artist_id: artist.id }, { store });
+  const out = await renderDashboard(store, 'usr_test');
   assert.ok(!out.includes('Alice Coltrane'));
 });

@@ -58,10 +58,10 @@ function addAlert(store, over = {}) {
   });
 }
 
-test('renders a complete standalone page', () => {
+test('renders a complete standalone page', async () => {
   const { store } = freshUser();
   addAlert(store);
-  const html = renderAlertHistory(store, 'usr_hist');
+  const html = await renderAlertHistory(store, 'usr_hist');
   assert.ok(html.includes('<!DOCTYPE html>'));
   assert.ok(html.includes('<title>Wax — alert history</title>'));
   assert.ok(html.includes('Alice Coltrane'));
@@ -69,39 +69,39 @@ test('renders a complete standalone page', () => {
   assert.ok(html.includes('$34.99'));
 });
 
-test('state filter shows only that state, and the filter row carries counts', () => {
+test('state filter shows only that state, and the filter row carries counts', async () => {
   const { store } = freshUser();
   addAlert(store, { id: 'alr_live', state: 'live' });
   addAlert(store, { id: 'alr_caught', state: 'caught', title: undefined, kind: 'restock' });
 
-  const live = renderAlertHistory(store, 'usr_hist', { state: 'live' });
+  const live = await renderAlertHistory(store, 'usr_hist', { state: 'live' });
   assert.ok(live.includes('[live]'));
   assert.ok(!live.includes('[caught]'));
 
-  const caught = renderAlertHistory(store, 'usr_hist', { state: 'caught' });
+  const caught = await renderAlertHistory(store, 'usr_hist', { state: 'caught' });
   assert.ok(caught.includes('[caught]'));
   assert.ok(!caught.includes('[live]'));
 
   // Every state's count appears in the filter row, like the board's filter row.
-  const all = renderAlertHistory(store, 'usr_hist');
+  const all = await renderAlertHistory(store, 'usr_hist');
   assert.ok(all.includes('?state=all'));
   assert.ok(all.includes('?state=sold_out'));
   assert.ok(/live \(1\)|live&#x2009;\(1\)|>live<.*\(1\)/s.test(all));
 });
 
-test('unknown states are ignored and render as all', () => {
+test('unknown states are ignored and render as all', async () => {
   const { store } = freshUser();
   addAlert(store, { state: 'live' });
-  const html = renderAlertHistory(store, 'usr_hist', { state: 'nonsense' });
+  const html = await renderAlertHistory(store, 'usr_hist', { state: 'nonsense' });
   assert.ok(html.includes('[live]'));
 });
 
-test('unread alerts are marked; read ones are not', () => {
+test('unread alerts are marked; read ones are not', async () => {
   const { store } = freshUser();
   addAlert(store, { id: 'alr_unread', read_at: null });
   addAlert(store, { id: 'alr_read', read_at: BASE });
 
-  const html = renderAlertHistory(store, 'usr_hist');
+  const html = await renderAlertHistory(store, 'usr_hist');
   const itemFor = (id) => html.slice(html.indexOf(`data-id="${id}"`)).split('</li>')[0];
   assert.ok(
     itemFor('alr_unread').includes('<span class="unread">unread</span>'),
@@ -110,7 +110,7 @@ test('unread alerts are marked; read ones are not', () => {
   assert.ok(!itemFor('alr_read').includes('unread'), 'read row has no unread marker');
 });
 
-test('hostile data is escaped; javascript: URLs never become links', () => {
+test('hostile data is escaped; javascript: URLs never become links', async () => {
   const { store } = freshUser();
   store.artists.insert({
     id: 'art_evil', name: '<script>alert("a")</script>', discogs_artist_id: null,
@@ -127,32 +127,32 @@ test('hostile data is escaped; javascript: URLs never become links', () => {
     listing_url: 'javascript:alert(document.cookie)',
   });
 
-  const html = renderAlertHistory(store, 'usr_hist');
+  const html = await renderAlertHistory(store, 'usr_hist');
   assert.ok(!html.includes('<script>alert("a")</script>'), 'artist name is escaped');
   assert.ok(!html.includes('<img src=x onerror=alert(1)>'), 'release title is escaped');
   assert.ok(html.includes('&lt;script&gt;'), 'escaped script tag present');
   assert.ok(!html.includes('href="javascript:'), 'javascript: URL never becomes a link');
 });
 
-test('only the requesting user’s alerts appear', () => {
+test('only the requesting user’s alerts appear', async () => {
   const { store } = freshUser();
   addAlert(store);
-  const html = renderAlertHistory(store, 'usr_stranger');
+  const html = await renderAlertHistory(store, 'usr_stranger');
   assert.ok(!html.includes('Alice Coltrane'));
   assert.ok(html.includes('nothing here yet'), 'stranger gets an empty state, not a leak');
 });
 
-test('alerts for a deleted release fall back to the raw id, never crash', () => {
+test('alerts for a deleted release fall back to the raw id, never crash', async () => {
   const { store } = freshUser();
   addAlert(store, { release_id: 'rel_gone' });
-  const html = renderAlertHistory(store, 'usr_hist');
+  const html = await renderAlertHistory(store, 'usr_hist');
   assert.ok(html.includes('rel_gone'));
 });
 
-test('empty history renders a helpful empty state per filter', () => {
+test('empty history renders a helpful empty state per filter', async () => {
   const { store } = freshUser();
-  const html = renderAlertHistory(store, 'usr_hist');
+  const html = await renderAlertHistory(store, 'usr_hist');
   assert.ok(html.includes('nothing here yet'));
-  const live = renderAlertHistory(store, 'usr_hist', { state: 'live' });
+  const live = await renderAlertHistory(store, 'usr_hist', { state: 'live' });
   assert.ok(live.includes('nothing here yet'));
 });

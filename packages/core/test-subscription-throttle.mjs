@@ -118,22 +118,22 @@ test('subscribe: the window slides — old attempts age out', async () => {
   assert.equal(res.subscription.state, 'pending');
 });
 
-test('confirm: unknown-token probes are capped per token, then 429', () => {
+test('confirm: unknown-token probes are capped per token, then 429', async () => {
   const store = freshStore();
   const token = 'nope-not-a-real-token';
   for (let i = 0; i < MAX_CONFIRM_ATTEMPTS_PER_WINDOW; i += 1) {
-    assert.throws(
-      () => confirmAlertSubscription(token, { store, now: T0 + i * 1000 }),
+    await assert.rejects(
+      async () => await confirmAlertSubscription(token, { store, now: T0 + i * 1000 }),
       (err) => err instanceof ApiError && err.status === 404 && err.code === 'bad_token',
     );
   }
-  assert.throws(
-    () => confirmAlertSubscription(token, { store, now: T0 + MAX_CONFIRM_ATTEMPTS_PER_WINDOW * 1000 }),
+  await assert.rejects(
+    async () => await confirmAlertSubscription(token, { store, now: T0 + MAX_CONFIRM_ATTEMPTS_PER_WINDOW * 1000 }),
     (err) => err instanceof ApiError && err.status === 429 && err.code === 'rate_limited',
   );
   // A different token gets its own budget.
-  assert.throws(
-    () => confirmAlertSubscription('a-different-nope', { store, now: T0 + 60000 }),
+  await assert.rejects(
+    async () => await confirmAlertSubscription('a-different-nope', { store, now: T0 + 60000 }),
     (err) => err instanceof ApiError && err.status === 404,
   );
 });
@@ -146,7 +146,7 @@ test('confirm: valid confirms never count against anyone', async () => {
   );
   // Confirm, then re-click the link many times (idempotent 200s) — none burn budget.
   for (let i = 0; i < MAX_CONFIRM_ATTEMPTS_PER_WINDOW + 5; i += 1) {
-    const sub = confirmAlertSubscription(confirm_token, { store, now: T0 + i * 1000 });
+    const sub = await confirmAlertSubscription(confirm_token, { store, now: T0 + i * 1000 });
     assert.equal(sub.state, 'active');
   }
   // No confirm-attempt rows were recorded for the valid token.

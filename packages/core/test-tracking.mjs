@@ -50,9 +50,9 @@ function freshStore(plan = 'free') {
 
 /* ------------------------------------------------------------------ tests */
 
-test('adding a scannable site stores the probe verdict', () => {
+test('adding a scannable site stores the probe verdict', async () => {
   const { store, token } = freshStore();
-  const src = addSource(token, { url: 'https://vinyl-den.example/new', label: 'Vinyl Den', html: SHOP_WITH_FEED }, { store });
+  const src = await addSource(token, { url: 'https://vinyl-den.example/new', label: 'Vinyl Den', html: SHOP_WITH_FEED }, { store });
   assert.equal(src.scannable, true);
   assert.equal(src.scan_method, 'feed');
   assert.equal(src.paused, false);
@@ -61,91 +61,91 @@ test('adding a scannable site stores the probe verdict', () => {
   assert.ok(src.scannable_reason.includes('high confidence'));
 });
 
-test('adding the same URL twice returns the existing row', () => {
+test('adding the same URL twice returns the existing row', async () => {
   const { store, token } = freshStore();
-  const a = addSource(token, { url: 'https://vinyl-den.example/new', html: SHOP_WITH_FEED }, { store });
-  const b = addSource(token, { url: 'https://vinyl-den.example/new', html: SHOP_WITH_FEED }, { store });
+  const a = await addSource(token, { url: 'https://vinyl-den.example/new', html: SHOP_WITH_FEED }, { store });
+  const b = await addSource(token, { url: 'https://vinyl-den.example/new', html: SHOP_WITH_FEED }, { store });
   assert.equal(a.id, b.id);
-  assert.equal(listSources(token, { store }).length, 1);
+  assert.equal(((await listSources(token, { store }))).length, 1);
 });
 
-test('an unscannable site is rejected unless the user explicitly opts in', () => {
+test('an unscannable site is rejected unless the user explicitly opts in', async () => {
   const { store, token } = freshStore();
   assert.equal(probeScannability({ url: 'https://flat.example/', html: EMPTY_DOC }).scannable, false);
-  assert.throws(
-    () => addSource(token, { url: 'https://flat.example/', html: EMPTY_DOC }, { store }),
+  await assert.rejects(
+    async () => await addSource(token, { url: 'https://flat.example/', html: EMPTY_DOC }, { store }),
     (err) => err.code === 'not_scannable' && err.status === 422,
   );
   // Explicit opt-in stores the verdict, visible on the dashboard.
-  const kept = addSource(token, { url: 'https://flat.example/', html: EMPTY_DOC, accept_unscannable: true }, { store });
+  const kept = await addSource(token, { url: 'https://flat.example/', html: EMPTY_DOC, accept_unscannable: true }, { store });
   assert.equal(kept.scannable, false);
   assert.equal(kept.scan_method, null);
   assert.ok(kept.scannable_reason.includes('no-product-structure'));
 });
 
-test('a site added without HTML is parked as not-probed-yet', () => {
+test('a site added without HTML is parked as not-probed-yet', async () => {
   const { store, token } = freshStore();
-  const src = addSource(token, { url: 'https://pending.example/' }, { store });
+  const src = await addSource(token, { url: 'https://pending.example/' }, { store });
   assert.equal(src.scannable, false);
   assert.ok(src.scannable_reason.startsWith('not-probed-yet'));
 });
 
-test('junk URLs are rejected before any probe runs', () => {
+test('junk URLs are rejected before any probe runs', async () => {
   const { store, token } = freshStore();
   for (const bad of ['not a url', 'ftp://files.example/x', 'file:///etc/passwd', '']) {
-    assert.throws(() => addSource(token, { url: bad, html: SHOP_WITH_FEED }, { store }),
+    await assert.rejects(() => addSource(token, { url: bad, html: SHOP_WITH_FEED }, { store }),
       (err) => err.code === 'invalid_url');
   }
 });
 
-test('updateSource: pause, interval floor, method override', () => {
+test('updateSource: pause, interval floor, method override', async () => {
   const { store, token } = freshStore();
-  const src = addSource(token, { url: 'https://vinyl-den.example/new', html: SHOP_WITH_FEED }, { store });
+  const src = await addSource(token, { url: 'https://vinyl-den.example/new', html: SHOP_WITH_FEED }, { store });
 
-  const paused = updateSource(token, src.id, { paused: true }, { store });
+  const paused = await updateSource(token, src.id, { paused: true }, { store });
   assert.equal(paused.paused, true);
 
-  const fast = updateSource(token, src.id, { scan_interval_secs: 5 }, { store });
+  const fast = await updateSource(token, src.id, { scan_interval_secs: 5 }, { store });
   assert.equal(fast.scan_interval_secs, MIN_SCAN_INTERVAL_SECS);
 
-  const slow = updateSource(token, src.id, { scan_interval_secs: 3600 }, { store });
+  const slow = await updateSource(token, src.id, { scan_interval_secs: 3600 }, { store });
   assert.equal(slow.scan_interval_secs, 3600);
 
-  const overridden = updateSource(token, src.id, { scan_method: 'sitemap' }, { store });
+  const overridden = await updateSource(token, src.id, { scan_method: 'sitemap' }, { store });
   assert.equal(overridden.scan_method, 'sitemap');
 
-  assert.throws(() => updateSource(token, src.id, { scan_method: 'smoke-signals' }, { store }),
+  await assert.rejects(() => updateSource(token, src.id, { scan_method: 'smoke-signals' }, { store }),
     (err) => err.code === 'invalid_scan_method');
-  assert.throws(() => updateSource(token, 'src_nope', { paused: true }, { store }),
+  await assert.rejects(() => updateSource(token, 'src_nope', { paused: true }, { store }),
     (err) => err.status === 404);
 });
 
-test('removeSource is idempotent and scoped to the owner', () => {
+test('removeSource is idempotent and scoped to the owner', async () => {
   const { store, token } = freshStore();
-  const src = addSource(token, { url: 'https://vinyl-den.example/new', html: SHOP_WITH_FEED }, { store });
-  assert.equal(removeSource(token, src.id, { store }).removed, 1);
-  assert.equal(removeSource(token, src.id, { store }).removed, 0);
-  assert.equal(listSources(token, { store }).length, 0);
+  const src = await addSource(token, { url: 'https://vinyl-den.example/new', html: SHOP_WITH_FEED }, { store });
+  assert.equal((await removeSource(token, src.id, { store })).removed, 1);
+  assert.equal((await removeSource(token, src.id, { store })).removed, 0);
+  assert.equal(((await listSources(token, { store }))).length, 0);
 });
 
-test('free tier caps tracked sites; series tier does not', () => {
+test('free tier caps tracked sites; series tier does not', async () => {
   const { store, token } = freshStore('free');
   for (let i = 0; i < FREE_SOURCE_LIMIT; i += 1) {
-    addSource(token, { url: `https://shop${i}.example/`, html: SHOPIFY_STOREFRONT }, { store });
+    await addSource(token, { url: `https://shop${i}.example/`, html: SHOPIFY_STOREFRONT }, { store });
   }
-  assert.throws(
-    () => addSource(token, { url: 'https://one-too-many.example/', html: SHOPIFY_STOREFRONT }, { store }),
+  await assert.rejects(
+    async () => await addSource(token, { url: 'https://one-too-many.example/', html: SHOPIFY_STOREFRONT }, { store }),
     (err) => err.code === 'source_limit' && err.status === 402,
   );
 
   const paid = freshStore('series');
   for (let i = 0; i < FREE_SOURCE_LIMIT + 2; i += 1) {
-    addSource(paid.token, { url: `https://shop${i}.example/`, html: SHOPIFY_STOREFRONT }, { store: paid.store });
+    await addSource(paid.token, { url: `https://shop${i}.example/`, html: SHOPIFY_STOREFRONT }, { store: paid.store });
   }
-  assert.equal(listSources(paid.token, { store: paid.store }).length, FREE_SOURCE_LIMIT + 2);
+  assert.equal((await listSources(paid.token, { store: paid.store })).length, FREE_SOURCE_LIMIT + 2);
 });
 
-test('sites are isolated between users', () => {
+test('sites are isolated between users', async () => {
   const { store, token } = freshStore();
   const other = store.createSession(store.users.insert({
     id: 'usr_other', email: 'other@example.com', handle: 'other',
@@ -154,8 +154,8 @@ test('sites are isolated between users', () => {
     phone: null, phone_verified: false, email_verified: true,
     created_at: new Date().toISOString(),
   }).id);
-  const src = addSource(token, { url: 'https://vinyl-den.example/new', html: SHOP_WITH_FEED }, { store });
-  assert.equal(listSources(other.token, { store }).length, 0);
-  assert.equal(removeSource(other.token, src.id, { store }).removed, 0);
+  const src = await addSource(token, { url: 'https://vinyl-den.example/new', html: SHOP_WITH_FEED }, { store });
+  assert.equal(((await listSources(other.token, { store }))).length, 0);
+  assert.equal((await removeSource(other.token, src.id, { store })).removed, 0);
   assert.equal(store.sources.count(), 1);
 });

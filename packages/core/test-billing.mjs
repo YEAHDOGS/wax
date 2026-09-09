@@ -35,7 +35,7 @@ function freshStore() {
   return store;
 }
 
-test('the money sentence holds: $10/mo series, 30-day trial', () => {
+test('the money sentence holds: $10/mo series, 30-day trial', async () => {
   assert.equal(SERIES_PRICE_CENTS, 1000);
   assert.equal(TRIAL_DAYS, 30);
   assert.equal(PLANS.series.priceCents, 1000);
@@ -43,25 +43,25 @@ test('the money sentence holds: $10/mo series, 30-day trial', () => {
   assert.equal(PLANS.free.priceCents, 0);
 });
 
-test('free -> trial stamps exactly 30 days out', () => {
+test('free -> trial stamps exactly 30 days out', async () => {
   const store = freshStore();
   const freeToken = store.createSession('usr_free').token;
   const before = Date.now();
-  const updated = startTrial(freeToken, { store });
+  const updated = await startTrial(freeToken, { store });
   assert.equal(updated.plan, 'trial');
   const ends = Date.parse(updated.trial_ends_at);
   assert.ok(ends - before >= 30 * DAY - 60_000, 'trial ends ~30 days out');
   assert.ok(ends - before <= 30 * DAY + 60_000, 'trial does not overshoot');
 });
 
-test('a second trial is refused', () => {
+test('a second trial is refused', async () => {
   const store = freshStore();
   const token = store.createSession('usr_free').token;
-  startTrial(token, { store });
-  assert.throws(() => startTrial(token, { store }), (e) => e.code === 'trial_already_used');
+  await startTrial(token, { store });
+  await assert.rejects(() => startTrial(token, { store }), (e) => e.code === 'trial_already_used');
 });
 
-test('expireTrials sweeps only past-due trials', () => {
+test('expireTrials sweeps only past-due trials', async () => {
   const store = freshStore();
   store.users.insert({
     id: 'usr_late', email: 'late@example.com', handle: 'late',
@@ -70,20 +70,20 @@ test('expireTrials sweeps only past-due trials', () => {
     phone: null, phone_verified: false, email_verified: true,
     created_at: new Date().toISOString(),
   });
-  const swept = expireTrials({ store });
+  const swept = await expireTrials({ store });
   assert.equal(swept, 1);
   assert.equal(store.users.find((u) => u.id === 'usr_late').plan, 'free');
   assert.equal(store.users.find((u) => u.id === 'usr_late').trial_ends_at, null);
   // A fresh trial must not be swept.
   const token = store.createSession('usr_free').token;
-  startTrial(token, { store });
-  assert.equal(expireTrials({ store }), 0);
+  await startTrial(token, { store });
+  assert.equal(await expireTrials({ store }), 0);
 });
 
-test('test-mode checkout returns a stub shaped like a real session', () => {
+test('test-mode checkout returns a stub shaped like a real session', async () => {
   const store = freshStore();
   const token = store.createSession('usr_free').token;
-  const session = checkoutSession(token, { store });
+  const session = await checkoutSession(token, { store });
   assert.equal(session.mode, 'test');
   assert.equal(session.plan, 'series');
   assert.equal(session.amount_cents, 1000);
@@ -96,36 +96,36 @@ test('test-mode checkout returns a stub shaped like a real session', () => {
   assert.equal(lookedUp.id, session.id);
 });
 
-test('live mode refuses loudly until a provider is wired', () => {
+test('live mode refuses loudly until a provider is wired', async () => {
   const store = freshStore();
   const token = store.createSession('usr_free').token;
-  assert.throws(
-    () => checkoutSession(token, { mode: 'live', store }),
+  await assert.rejects(
+    async () => await checkoutSession(token, { mode: 'live', store }),
     (e) => e.code === 'billing_not_configured' && e.status === 501,
   );
 });
 
-test('checkout is refused for already-subscribed accounts', () => {
+test('checkout is refused for already-subscribed accounts', async () => {
   const store = freshStore();
   const token = store.createSession('usr_kestrel').token; // seeded `series` user
-  assert.throws(
-    () => checkoutSession(token, { store }),
+  await assert.rejects(
+    async () => await checkoutSession(token, { store }),
     (e) => e.code === 'already_subscribed',
   );
 });
 
-test('activateSeries moves trial -> series and records the provider id', () => {
+test('activateSeries moves trial -> series and records the provider id', async () => {
   const store = freshStore();
   const token = store.createSession('usr_free').token;
-  startTrial(token, { store });
-  const updated = activateSeries(token, 'sub_test_123', { store });
+  await startTrial(token, { store });
+  const updated = await activateSeries(token, 'sub_test_123', { store });
   assert.equal(updated.plan, 'series');
   assert.equal(updated.external_subscription_id, 'sub_test_123');
   assert.equal(updated.trial_ends_at, null);
 });
 
-test('unknown or missing bearer is 401, not a crash', () => {
+test('unknown or missing bearer is 401, not a crash', async () => {
   const store = freshStore();
-  assert.throws(() => startTrial('bogus', { store }), (e) => e.status === 401);
-  assert.throws(() => checkoutSession(null, { store }), (e) => e.status === 401);
+  await assert.rejects(() => startTrial('bogus', { store }), (e) => e.status === 401);
+  await assert.rejects(() => checkoutSession(null, { store }), (e) => e.status === 401);
 });
