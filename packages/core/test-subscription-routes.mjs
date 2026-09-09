@@ -226,15 +226,15 @@ test('confirm: valid token activates the subscription', async () => {
     { email: 'confirm@example.com', channel: 'email' },
     { store, channel: stubChannel() },
   );
-  const sub = confirmAlertSubscription(confirm_token, { store });
+  const sub = await confirmAlertSubscription(confirm_token, { store });
   assert.equal(sub.state, 'active');
   assert.ok(sub.confirmed_at);
 });
 
 test('confirm: bad token is a 404', async () => {
   const store = freshStore();
-  await assertThrowsApi(() => confirmAlertSubscription('nope', { store }), 404, 'bad_token');
-  await assertThrowsApi(() => confirmAlertSubscription(null, { store }), 404, 'bad_token');
+  await assertThrowsApi(async () => await confirmAlertSubscription('nope', { store }), 404, 'bad_token');
+  await assertThrowsApi(async () => await confirmAlertSubscription(null, { store }), 404, 'bad_token');
 });
 
 test('confirm: re-clicking the link on an active subscription is idempotent', async () => {
@@ -243,8 +243,8 @@ test('confirm: re-clicking the link on an active subscription is idempotent', as
     { email: 'again@example.com', channel: 'email' },
     { store, channel: stubChannel() },
   );
-  const first = confirmAlertSubscription(confirm_token, { store });
-  const second = confirmAlertSubscription(confirm_token, { store });
+  const first = await confirmAlertSubscription(confirm_token, { store });
+  const second = await confirmAlertSubscription(confirm_token, { store });
   assert.equal(second.state, 'active');
   assert.equal(second.id, first.id);
 });
@@ -255,8 +255,8 @@ test('confirm: a cancelled subscription is gone, not re-confirmable', async () =
     { email: 'cancelled@example.com', channel: 'email' },
     { store, channel: stubChannel() },
   );
-  unsubscribeAlertChannel({ token: confirm_token }, { store });
-  await assertThrowsApi(() => confirmAlertSubscription(confirm_token, { store }), 410, 'gone');
+  await unsubscribeAlertChannel({ token: confirm_token }, { store });
+  await assertThrowsApi(async () => await confirmAlertSubscription(confirm_token, { store }), 410, 'gone');
 });
 
 /* ------------------------------------------------------------------ *
@@ -269,8 +269,8 @@ test('unsubscribe: token cancels the subscription', async () => {
     { email: 'bye@example.com', channel: 'email' },
     { store, channel: stubChannel() },
   );
-  confirmAlertSubscription(confirm_token, { store });
-  const out = unsubscribeAlertChannel({ token: confirm_token }, { store });
+  await confirmAlertSubscription(confirm_token, { store });
+  const out = await unsubscribeAlertChannel({ token: confirm_token }, { store });
   assert.deepEqual(out, { ok: true, unsubscribed: 1 });
   const row = store.subscriptions.find((s) => s.id === subscription.id);
   assert.equal(row.state, 'unsubscribed');
@@ -284,19 +284,19 @@ test('unsubscribe: email + filter cancels without a token', async () => {
     { email: 'nofilter@example.com', channel: 'email', filter },
     { store, channel: stubChannel() },
   );
-  confirmAlertSubscription(confirm_token, { store });
-  const out = unsubscribeAlertChannel({ email: 'nofilter@example.com', filter }, { store });
+  await confirmAlertSubscription(confirm_token, { store });
+  const out = await unsubscribeAlertChannel({ email: 'nofilter@example.com', filter }, { store });
   assert.deepEqual(out, { ok: true, unsubscribed: 1 });
 });
 
 test('unsubscribe: no match is a 404', async () => {
   const store = freshStore();
   await assertThrowsApi(
-    () => unsubscribeAlertChannel({ email: 'ghost@example.com' }, { store }),
+    async () => await unsubscribeAlertChannel({ email: 'ghost@example.com' }, { store }),
     404, 'not_found',
   );
   await assertThrowsApi(
-    () => unsubscribeAlertChannel({ token: 'ghost' }, { store }),
+    async () => await unsubscribeAlertChannel({ token: 'ghost' }, { store }),
     404, 'not_found',
   );
 });
@@ -306,8 +306,8 @@ test('unsubscribe: re-subscribing after cancel starts a fresh pending subscripti
   const channel = stubChannel();
   const input = { email: 'back@example.com', channel: 'email' };
   const { confirm_token } = await subscribeAlertChannel(input, { store, channel });
-  confirmAlertSubscription(confirm_token, { store });
-  unsubscribeAlertChannel({ token: confirm_token }, { store });
+  await confirmAlertSubscription(confirm_token, { store });
+  await unsubscribeAlertChannel({ token: confirm_token }, { store });
   const again = await subscribeAlertChannel(input, { store, channel });
   assert.equal(again.subscription.duplicate, false);
   assert.equal(again.subscription.state, 'pending');
@@ -318,7 +318,7 @@ test('unsubscribe: re-subscribing after cancel starts a fresh pending subscripti
 test('unsubscribe: unknown fields are rejected', async () => {
   const store = freshStore();
   await assertThrowsApi(
-    () => unsubscribeAlertChannel({ email: 'a@example.com', reason: 'bored' }, { store }),
+    async () => await unsubscribeAlertChannel({ email: 'a@example.com', reason: 'bored' }, { store }),
     400, 'unknown_field',
   );
 });

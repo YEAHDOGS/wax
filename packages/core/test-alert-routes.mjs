@@ -93,27 +93,27 @@ function addAlert(store, over = {}) {
   });
 }
 
-test('alertHistory: renders the session user\'s page as a full HTML document', () => {
+test('alertHistory: renders the session user\'s page as a full HTML document', async () => {
   const store = createStore();
   fixtureUser(store);
   addAlert(store);
   const token = store.createSession('usr_route').token;
-  const page = alertHistory(token, { state: 'all' }, { store });
+  const page = await alertHistory(token, { state: 'all' }, { store });
   assert.ok(page.includes('<!DOCTYPE html>'));
   assert.ok(page.includes('Route Test LP'));
   assert.ok(page.includes('$29.99'));
 });
 
-test('alertHistory: a bogus token is a 401, never a page', () => {
+test('alertHistory: a bogus token is a 401, never a page', async () => {
   const store = createStore();
   fixtureUser(store);
-  assert.throws(
-    () => alertHistory('nope-not-a-token', { state: 'all' }, { store }),
+  await assert.rejects(
+    async () => await alertHistory('nope-not-a-token', { state: 'all' }, { store }),
     (err) => err instanceof ApiError && err.status === 401 && err.code === 'unauthorized',
   );
 });
 
-test('alertHistory: history is scoped to the session user', () => {
+test('alertHistory: history is scoped to the session user', async () => {
   const store = createStore();
   fixtureUser(store);
   addAlert(store);
@@ -124,7 +124,7 @@ test('alertHistory: history is scoped to the session user', () => {
     created_at: BASE,
   });
   const otherToken = store.createSession('usr_other').token;
-  const page = alertHistory(otherToken, { state: 'all' }, { store });
+  const page = await alertHistory(otherToken, { state: 'all' }, { store });
   assert.ok(!page.includes('Route Test LP'));
   assert.ok(page.includes('nothing here yet'));
 });
@@ -133,8 +133,8 @@ test('alertHistory: history is scoped to the session user', () => {
  * The route adapter — GET /api/alerts/history?state=
  * ------------------------------------------------------------------ */
 
-const SEEDED = (() => {
-  const { token, user } = login({ test: true });
+const SEEDED = await (async () => {
+  const { token, user } = await login({ test: true });
   const artist = defaultStore.artists.insert({
     id: 'art_seeded_route', name: 'Seeded Route Artist', discogs_artist_id: null,
     image_url: null, genres: [], created_at: BASE,
@@ -199,12 +199,12 @@ test('route: no token is a 401 JSON error, not a page', async () => {
  * The alert detail view — GET /api/alerts/history?id=
  * ------------------------------------------------------------------ */
 
-test('alertDetail: renders the joined alert as a full HTML document', () => {
+test('alertDetail: renders the joined alert as a full HTML document', async () => {
   const store = createStore();
   fixtureUser(store);
   addAlert(store, { id: 'alr_detail', kind: 'price', price_cents: 1999 });
   const token = store.createSession('usr_route').token;
-  const page = alertDetail(token, 'alr_detail', { store });
+  const page = await alertDetail(token, 'alr_detail', { store });
   assert.ok(page.includes('<!DOCTYPE html>'));
   assert.ok(page.includes('Route Test LP'));
   assert.ok(page.includes('Route Artist'));
@@ -213,7 +213,7 @@ test('alertDetail: renders the joined alert as a full HTML document', () => {
   assert.ok(page.includes('href="/api/alerts/history"'));
 });
 
-test('alertDetail: renderer escapes hostile strings and neuters javascript: URLs', () => {
+test('alertDetail: renderer escapes hostile strings and neuters javascript: URLs', async () => {
   const store = createStore();
   fixtureUser(store);
   addAlert(store, {
@@ -221,23 +221,23 @@ test('alertDetail: renderer escapes hostile strings and neuters javascript: URLs
     listing_url: 'javascript:alert(1)',
   });
   store.releases.update((r) => r.id === 'rel_route', { title: '<img src=x onerror=alert(1)>' });
-  const page = renderAlertDetail(store, store.alerts.find((a) => a.id === 'alr_hostile'));
+  const page = await renderAlertDetail(store, store.alerts.find((a) => a.id === 'alr_hostile'));
   assert.ok(!page.includes('<img src=x'));
   assert.ok(page.includes('&lt;img src=x'));
   assert.ok(!page.includes('href="javascript:'));
 });
 
-test('alertDetail: unknown id is a 404, never a page', () => {
+test('alertDetail: unknown id is a 404, never a page', async () => {
   const store = createStore();
   fixtureUser(store);
   const token = store.createSession('usr_route').token;
-  assert.throws(
-    () => alertDetail(token, 'alr_nope', { store }),
+  await assert.rejects(
+    async () => await alertDetail(token, 'alr_nope', { store }),
     (err) => err instanceof ApiError && err.status === 404 && err.code === 'not_found',
   );
 });
 
-test('alertDetail: another user\'s alert id is the same 404 — no id oracle', () => {
+test('alertDetail: another user\'s alert id is the same 404 — no id oracle', async () => {
   const store = createStore();
   fixtureUser(store);
   addAlert(store, { id: 'alr_mine' });
@@ -248,8 +248,8 @@ test('alertDetail: another user\'s alert id is the same 404 — no id oracle', (
     created_at: BASE,
   });
   const token = store.createSession('usr_snoop').token;
-  assert.throws(
-    () => alertDetail(token, 'alr_mine', { store }),
+  await assert.rejects(
+    async () => await alertDetail(token, 'alr_mine', { store }),
     (err) => err instanceof ApiError && err.status === 404,
   );
 });
