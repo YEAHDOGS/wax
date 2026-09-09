@@ -14,11 +14,11 @@ import { ApiError, listTracks, setTrackDuration } from '@wax/core';
 import { json, readBody, route } from './_lib/http.js';
 
 export default route({
-  GET: (req, res) => json(res, 200, { tracks: listTracks({ streamBase: '/api/stream' }) }),
+  GET: async (req, res) => json(res, 200, { tracks: await listTracks({ streamBase: '/api/stream' }) }),
 
   PATCH: async (req, res) => {
     const { id, duration_sec } = await readBody(req);
     if (!id) throw new ApiError(400, 'missing_id', 'Name the track.');
-    json(res, 200, setTrackDuration(id, duration_sec));
+    json(res, 200, await setTrackDuration(id, duration_sec));
   },
 });
