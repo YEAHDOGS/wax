@@ -61,6 +61,7 @@ export {
   TRIAL_DAYS,
   startTrial,
   expireTrials,
+  effectivePlan,
   activateSeries,
   checkoutSession,
   getCheckoutSession,

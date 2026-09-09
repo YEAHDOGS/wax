@@ -21,6 +21,7 @@
 
 import { store as defaultStore, newId } from './store.js';
 import { ApiError, requireUser } from './handlers.js';
+import { effectivePlan } from './plan.js';
 import { probeScannability } from './probe.js';
 
 /** Free accounts may track this many merch sites. Mirrors FREE_WATCH_LIMIT. */
@@ -92,7 +93,8 @@ export function addSource(token, { url, label = null, html = null, accept_unscan
   if (existing) return existing;
 
   const count = store.sources.filter((s) => s.user_id === user.id).length;
-  if (user.plan === 'free' && count >= FREE_SOURCE_LIMIT) {
+  // Same read-path trial enforcement as the watch gate in handlers.js.
+  if (effectivePlan(user) === 'free' && count >= FREE_SOURCE_LIMIT) {
     throw new ApiError(
       402,
       'source_limit',

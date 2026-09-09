@@ -31,6 +31,7 @@
 import { store as defaultStore, newId } from './store.js';
 import { renderAlertHistory } from './alert-history.js';
 import { renderAlertDetail } from './alert-detail.js';
+import { effectivePlan } from './plan.js';
 
 /**
  * An error carrying the HTTP status it should become.
@@ -605,7 +606,9 @@ export function addWatch(token, { artist_id, merch_types = [], target_price_cent
   if (existing) return existing;
 
   const count = store.watches.filter((w) => w.user_id === user.id).length;
-  if (user.plan === 'free' && count >= FREE_WATCH_LIMIT) {
+  // Read-path trial enforcement: an expired-but-unswept trial counts as
+  // free here too. See `effectivePlan` in plan.js.
+  if (effectivePlan(user) === 'free' && count >= FREE_WATCH_LIMIT) {
     throw new ApiError(
       402,
       'watch_limit',
@@ -652,7 +655,9 @@ const publicUser = (user) => ({
   handle: user.handle,
   display_name: user.display_name,
   avatar_url: user.avatar_url,
-  plan: user.plan,
+  // Effective plan, not the raw row — the profile must agree with the
+  // dispatch gates even before the sweep writes the downgrade.
+  plan: effectivePlan(user),
 });
 
 /**
