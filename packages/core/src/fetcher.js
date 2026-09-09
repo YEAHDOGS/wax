@@ -429,14 +429,19 @@ export function parseJsonLdProducts(html) {
     }
     for (const node of jsonLdProductNodes(parsed)) {
       const offers = Array.isArray(node.offers) ? node.offers[0] : node.offers;
+      // `{ amount, currency }` is the shape normalizeProduct's parsePrice
+      // understands, so priceCurrency survives into the canonical record.
+      const price =
+        offers?.price != null
+          ? { amount: offers.price, currency: offers.priceCurrency ?? null }
+          : null;
       out.push({
         '@type': node['@type'],
         name: jsonLdString(node.name),
         brand: jsonLdString(node.brand),
         url: node.url ?? node['@id'] ?? null,
         image: jsonLdString(node.image),
-        price: offers?.price ?? null,
-        currency: offers?.priceCurrency ?? null,
+        price,
       });
     }
   }
@@ -657,7 +662,7 @@ function hostStateFor(ctx, host) {
     state = {
       robots: null, // { rules, crawlDelaySecs, fetchedAt }
       crawlDelaySecs: 0,
-      lastFetchAt: 0,
+      lastFetchAt: null, // null = never contacted: first fetch goes out immediately
       backoffMs: 0,
       backoffUntil: 0,
     };
@@ -694,10 +699,11 @@ async function ensureRobots(ctx, host, startUrl) {
 /** Wait out crawl-delay, the politeness floor, and any active backoff. */
 async function waitPolite(ctx, state) {
   const now = ctx.clock();
+  const sinceLast = state.lastFetchAt == null ? Infinity : now - state.lastFetchAt;
   const wait = Math.max(
     0,
-    state.crawlDelaySecs * 1000 - (now - state.lastFetchAt),
-    ctx.politenessSecs * 1000 - (now - state.lastFetchAt),
+    state.crawlDelaySecs * 1000 - sinceLast,
+    ctx.politenessSecs * 1000 - sinceLast,
     state.backoffUntil - now,
   );
   if (wait > 0) await ctx.sleep(wait + ctx.jitter());
