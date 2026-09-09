@@ -1,0 +1,15 @@
+#!/usr/bin/env node
+/**
+ * `wax status` — the alert engine's watchlist view, from the terminal.
+ *
+ * Usage:  node packages/core/bin/wax [user-id]
+ *
+ * Runs entirely against the seeded demo store: fixture data, no network,
+ * no credentials. In production this same renderer takes the real store.
+ */
+
+import { createStore, renderDashboard } from '../src/index.js';
+
+const [userId] = process.argv.slice(2);
+const store = createStore();
+process.stdout.write(`${renderDashboard(store, userId ?? 'usr_test')}\n`);
