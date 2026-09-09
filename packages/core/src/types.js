@@ -241,7 +241,9 @@
  * @property {string}    id
  * @property {string}    source_id
  * @property {Timestamp} scanned_at
- * @property {'ok'|'fetch_failed'|'error'} outcome
+ * @property {'ok'|'fetch_failed'|'error'|'dispatch'|'digest'} outcome
+ *   'dispatch' and 'digest' are delivery receipts, not scan attempts —
+ *   they land here so every send is inspectable next to the attempts.
  * @property {?number}   status_code      HTTP status when the fetch answered.
  * @property {boolean}   baseline         First scan: snapshot stored, nothing alerted.
  * @property {number}    parsed           Raw records the fetch returned.
@@ -262,6 +264,26 @@
  * @property {string}    hash
  * @property {Array<object>} products  Normalized products (jsonb in Postgres).
  * @property {Timestamp} updated_at
+ */
+
+/**
+ * One held-back alert waiting for the next digest email. Written by the
+ * digest queue (src/digest.js) when the notify gate holds a delivery
+ * back; deleted when the digest is sent, when it expires, or when the
+ * owning user/alert is deleted. Exactly one row per (user_id, alert_id).
+ *
+ * @typedef {object} DigestQueueItem
+ * @property {string}    id
+ * @property {string}    user_id
+ * @property {string}    alert_id   The alert row that produced the held delivery.
+ * @property {AlertKind} kind
+ * @property {string}    artist_name
+ * @property {string}    title
+ * @property {?Cents}    price_cents
+ * @property {?string}   listing_url
+ * @property {?string}   source_label
+ * @property {string}    reason     Why it was held back (joined with ' | ' when several).
+ * @property {Timestamp} queued_at
  */
 
 /**
@@ -455,4 +477,5 @@
 // This module is documentation, not code. The export exists so that a bundler
 // treats the file as a module and so `import '@wax/core/types'` is legal for
 // its side effect of pulling the typedefs into scope.
-export const TYPES_VERSION = 2;
+// Version 3: digest_queue table + 'dispatch'/'digest' scan-log outcomes.
+export const TYPES_VERSION = 3;
