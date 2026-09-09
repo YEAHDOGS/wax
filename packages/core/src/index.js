@@ -101,6 +101,7 @@ export {
   runScanPass,
 } from './poller.js';
 export { renderDashboard } from './dashboard.js';
+export { renderAlertHistory } from './alert-history.js';
 export {
   createHttpFetcher,
   RobotsDisallowedError,
