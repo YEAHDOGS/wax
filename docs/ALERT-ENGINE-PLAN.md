@@ -225,8 +225,17 @@ same transparency pattern as DOGS Remote's attempt log.
      (body still wins) — that's the actual one-click path, since email
      clients POST the List-Unsubscribe URL with an empty body.
    - **NEXT (unchanged):** the actual live sends still wait on Brando's
-     `RESEND_API_KEY`; add the per-address subscribe throttle counters
-     alongside the Postgres migration of `alert_subscriptions`.
+     `RESEND_API_KEY`.
+   - **BUILT (2026-09-09, jack/wax-list-unsubscribe):** per-address
+     subscribe throttle counters — `MAX_SUBSCRIBE_ATTEMPTS_PER_WINDOW`
+     (5) new subscribes per rolling hour per channel+address, unknown
+     confirm-token probes capped per token (`MAX_CONFIRM_ATTEMPTS_PER_WINDOW`,
+     10/hour), both refused as 429 `rate_limited` — idempotent duplicates
+     never burn budget, valid confirms never count, and refused subscribes
+     create no row. Counters live in the store's `subscribeAttempts`
+     collection (`subscribe_attempt` table in `schema.sql`), so the
+     Postgres swap inherits the guards with the subscriptions table.
+     Pinned by `packages/core/test-subscription-throttle.mjs` (8 tests).
 
 ## 5. Free-tier mapping
 
