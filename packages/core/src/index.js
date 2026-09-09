@@ -21,6 +21,10 @@
  * | `notify.js`   | Alert delivery content (plan §3): drop email/SMS            |
  * |               | formatting, digest folding, per-user rate-limit gate.      |
  * |               | Pure decision logic — providers wire up later.             |
+ * | `poller.js`   | Scan worker (plan §2): due-source queue, fetch dispatch,    |
+ * |               | snapshot persistence, adaptive backoff, scan log, and the   |
+ * |               | alert feed into the notify path. Fetcher is injected —     |
+ * |               | zero network I/O here.                                      |
  * | `dashboard.js`| Watchlist status view (plan §4 item 6): artists, sites,    |
  * |               | alerts as plain text. Pure render — see `bin/wax`.         |
  *
@@ -66,6 +70,20 @@ export {
   SMS_PER_HOUR_CAP,
   EMAIL_PER_HOUR_CAP,
 } from './notify.js';
+export {
+  USER_AGENT,
+  BASE_SCAN_INTERVAL_SECS,
+  MAX_SCAN_INTERVAL_SECS,
+  PASS_LIMIT,
+  canFetch,
+  selectDueSources,
+  escalateIntervalSecs,
+  watchedArtists,
+  sentThisWindow,
+  recordScanLog,
+  scanOneSource,
+  runScanPass,
+} from './poller.js';
 export { renderDashboard } from './dashboard.js';
 export {
   normalizeProduct,
