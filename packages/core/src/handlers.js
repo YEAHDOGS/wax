@@ -40,6 +40,7 @@
 import { store as defaultStore, newId } from './store.js';
 import { renderAlertHistory } from './alert-history.js';
 import { renderAlertDetail } from './alert-detail.js';
+import { renderCheckoutPage } from './checkout-page.js';
 import { effectivePlan } from './plan.js';
 
 /**
@@ -366,6 +367,25 @@ export async function alertDetail(token, alertId, { store = defaultStore } = {})
   const alert = await store.alerts.find((a) => a.id === alertId && a.user_id === user.id);
   if (!alert) throw notFound('Alert');
   return renderAlertDetail(store, alert);
+}
+
+/**
+ * The checkout page — the money lane's front door.
+ *
+ * Same session contract as the alert-history page: the bearer is validated
+ * here, then re-handed to the page so its inline script can POST
+ * `/api/checkout` (staging wiring — see `checkout-page.js` and
+ * `docs/CHECKOUT.md`). Users already on `series` get the "you're in" panel
+ * instead of a buy button, matching the POST's 409.
+ *
+ * @param {?string} token
+ * @param {object} [deps]
+ * @param {typeof defaultStore} [deps.store]
+ * @returns {Promise<string>} A complete HTML document.
+ */
+export async function checkoutPage(token, { store = defaultStore } = {}) {
+  const user = await requireUser(token, { store });
+  return renderCheckoutPage(user, { token });
 }
 
 /**

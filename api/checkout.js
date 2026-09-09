@@ -1,5 +1,9 @@
 /**
- * POST /api/checkout — create a checkout session for the $10/month series.
+ * /api/checkout — the money lane's front door, in two verbs.
+ *
+ * GET — the checkout page (docs/CHECKOUT.md): plan card, $10/month price,
+ * cancel-anytime copy, and a subscribe button wired to the POST below.
+ * Session bearer required, same as the alert-history page.
  *
  * POST body:
  *   { "mode": "test" | "live", "success_url": "...", "cancel_url": "..." }
@@ -14,10 +18,13 @@
  * the door through it.
  */
 
-import { ApiError, checkoutSession } from '@wax/core';
-import { bearer, json, readBody, route } from './_lib/http.js';
+import { ApiError, checkoutPage, checkoutSession } from '@wax/core';
+import { bearer, html, json, readBody, route } from './_lib/http.js';
 
 export default route({
+  GET: async (req, res) => {
+    html(res, 200, await checkoutPage(bearer(req)));
+  },
   POST: async (req, res) => {
     const body = await readBody(req);
     const mode = body.mode ?? 'test';
