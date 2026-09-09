@@ -79,6 +79,34 @@ same transparency pattern as DOGS Remote's attempt log.
 2. Scannability probe endpoint + UI verdict display. — done (`probe.js`)
 3. Scan worker + queue + snapshot diffing. — done (`fetcher.js`, `poller.js`, `scanner.js`)
 4. Artist matching + cross-source dedupe. — done (`scanner.js`, `rules.js`)
+   - **BUILT (2026-09-09, jack/wax-alert-engine):** wantlist alert-matching
+     engine core — `packages/core/src/alert-engine.js` (`runEngine`,
+     `classifyEvent`, `wantMatchesRelease`, `artistMatches`,
+     `fuzzyContains`) matches a user wantlist against Discogs-shaped
+     release batches and emits typed alert events (`new` / `restock` /
+     `price_drop`): fuzzy artist/title matching (normalized containment +
+     token coverage), conjunctive format/pressing filters, price-threshold
+     gating, and prior-state comparison so the same release never fires
+     twice. `packages/core/src/alert-queue.js` is the staging layer in
+     front of dispatch: user+release dedupe across batches, per-user
+     rolling-hour rate cap (refusals reported, folded into the digest —
+     never silently dropped), priority drain order
+     (price_drop → restock → new), oldest-first within a kind. Zero
+     dependencies, pure functions, injectable clocks. The provider seam is
+     `packages/core/src/send-adapters.js`: `createDisabledResendAdapter` /
+     `createDisabledTwilioAdapter` are clearly marked NOT WIRED (every send
+     returns a `{ ok: false }` receipt naming the missing keys — no socket
+     is ever opened), `createConsoleAdapter` records sends in-memory for
+     tests, and `resolveSendAdapters(config)` returns the fully-wired
+     `dispatch.js` channels only when `enabled: true` AND live keys are
+     present — keyless or `enabled`-without-keys config still resolves to
+     stubs. No half-wired. Engine works against Discogs-shaped fixtures
+     under `packages/core/fixtures/` — no live API calls. Pinned by
+     `packages/core/test-alert-engine.mjs` (7 tests), `test-alert-queue.mjs`
+     (10), `test-send-adapters.mjs` (10).
+   - **NEXT:** persist `prevStates` + the queue's seen-set in Postgres with
+     the `alerts` table; hook `runEngine` into the scan worker's Discogs
+     batch path once the probe ships.
 5. Alert delivery (Resend, then Twilio). — done (adapters wired, key-gated; live keys pending from Brando)
 6. UI: add artist, add site, scan status dashboard, alert history. — done (`dashboard.js`, `alert-history.js`)
    - **BUILT (2026-09-09, jack/wax-alert-history):** `renderAlertHistory(store, userId, { state })` in
