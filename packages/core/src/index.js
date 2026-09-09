@@ -101,6 +101,14 @@ export {
   runScanPass,
 } from './poller.js';
 export { renderDashboard } from './dashboard.js';
+export {
+  SUBSCRIPTION_CHANNELS,
+  SUBSCRIPTION_STATES,
+  DEFAULT_CONFIRM_BASE_URL,
+  subscribeAlertChannel,
+  confirmAlertSubscription,
+  unsubscribeAlertChannel,
+} from './subscriptions.js';
 export { renderAlertHistory } from './alert-history.js';
 export { renderAlertDetail } from './alert-detail.js';
 export {

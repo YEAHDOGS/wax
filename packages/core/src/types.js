@@ -303,6 +303,26 @@
  */
 
 /**
+ * A double-opt-in alert subscription (src/subscriptions.js). Keyed by
+ * address, not by user — the confirm token is the proof of ownership.
+ *
+ * @typedef {object} AlertSubscription
+ * @property {string}   id
+ * @property {?string}  email
+ * @property {?string}  phone
+ * @property {string}   recipient     The address alerts go to.
+ * @property {'email'|'sms'} channel
+ * @property {?object}  filter        Release filter, or null for everything.
+ * @property {string}   filter_key    Canonicalized filter JSON (idempotency).
+ * @property {'pending'|'active'|'unsubscribed'} state
+ * @property {string}   confirm_token Double-opt-in + unsubscribe token.
+ * @property {?object}  confirm_receipt Never-throw delivery receipt.
+ * @property {Timestamp} created_at
+ * @property {?Timestamp} confirmed_at
+ * @property {?Timestamp} unsubscribed_at
+ */
+
+/**
  * Why an alert fired.
  * - `drop`    — a new pressing exists
  * - `price`   — a listing crossed the user's target

@@ -135,6 +135,7 @@ function buildStore(data) {
     scanLogs: collection(data.scanLogs ?? []),
     scanSnapshots: collection(data.scanSnapshots ?? []),
     digestQueue: collection(data.digestQueue ?? []),
+    subscriptions: collection(data.subscriptions ?? []),
     watches: collection(data.watches),
     alerts: collection(data.alerts),
     crateItems: collection(data.crateItems),
