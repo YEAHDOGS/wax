@@ -360,12 +360,24 @@ export function createLogChannel({ path, name = 'log' } = {}) {
  * `https://api.resend.com`. Nothing here needs or stores a real key;
  * Brando supplies `RESEND_API_KEY` when the send is real.
  *
+ * List-Unsubscribe (plan §3, "the missing piece before real sends"):
+ * pass `unsubscribeUrl` to put every email behind a compliant one-click
+ * unsubscribe. It may be a static http(s) URL, or a function
+ * `(envelope) => ?string` resolved per send — the function form is how a
+ * per-recipient token lands in the URL (use `buildUnsubscribeUrl` from
+ * `subscriptions.js`, with the endpoint's unsubscribe token, to build
+ * it). A set-but-malformed URL refuses the send as `{ ok: false }` —
+ * Gmail and Outlook require working List-Unsubscribe on bulk mail, so a
+ * bad value is a delivery incident, not a warning.
+ *
  * @param {object} input
  * @param {string} input.apiKey Live Resend key (`RESEND_API_KEY`).
  * @param {string} input.from Verified sender, e.g. `alerts@wax.wearedogs.net`.
  * @param {string} [input.baseUrl] Provider root. Defaults to the real one.
+ * @param {?(string|(envelope: object) => ?string)} [input.unsubscribeUrl]
+ *   Static List-Unsubscribe URL, or a per-send resolver.
  */
-export function createResendChannel({ apiKey, from, baseUrl = 'https://api.resend.com' } = {}) {
+export function createResendChannel({ apiKey, from, baseUrl = 'https://api.resend.com', unsubscribeUrl = null } = {}) {
   if (!apiKey || typeof apiKey !== 'string') {
     throw new Error(
       'Resend email channel needs a live API key from Brando (RESEND_API_KEY) — ' +
@@ -374,6 +386,35 @@ export function createResendChannel({ apiKey, from, baseUrl = 'https://api.resen
   }
   if (!from || typeof from !== 'string') {
     throw new Error('Resend email channel needs a verified sender address (from).');
+  }
+  if (unsubscribeUrl != null && typeof unsubscribeUrl !== 'string' && typeof unsubscribeUrl !== 'function') {
+    throw new TypeError(
+      `Resend unsubscribeUrl must be a URL string or a (envelope) => url function, got ${typeof unsubscribeUrl}`,
+    );
+  }
+  /** Resolve the configured unsubscribe target for one send; null = no link for this recipient. */
+  function resolveUnsubscribeUrl(envelope) {
+    if (unsubscribeUrl == null) return null;
+    let resolved;
+    if (typeof unsubscribeUrl === 'function') {
+      try {
+        resolved = unsubscribeUrl(envelope);
+      } catch {
+        resolved = null;
+      }
+    } else {
+      resolved = unsubscribeUrl;
+    }
+    if (resolved == null || resolved === '') return null;
+    if (typeof resolved !== 'string') return { invalid: true, raw: resolved };
+    try {
+      const parsed = new URL(resolved);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+        ? { url: resolved }
+        : { invalid: true, raw: resolved };
+    } catch {
+      return { invalid: true, raw: resolved };
+    }
   }
   const channel = {
     name: 'resend',
@@ -384,11 +425,31 @@ export function createResendChannel({ apiKey, from, baseUrl = 'https://api.resen
       if (!to || !EMAIL_RE.test(to)) {
         return providerFailure('resend', sentAt, `refusing to send email to invalid address ${JSON.stringify(to)}`);
       }
+      let emailHeaders = null;
+      if (unsubscribeUrl != null) {
+        const resolved = resolveUnsubscribeUrl(envelope);
+        if (resolved?.invalid) {
+          return providerFailure(
+            'resend',
+            sentAt,
+            `refusing to send — invalid List-Unsubscribe URL ${JSON.stringify(String(resolved.raw).slice(0, 120))}; ` +
+              'fix the URL or drop the unsubscribeUrl option',
+          );
+        }
+        if (resolved?.url) {
+          // RFC 2369 header, RFC 8058 one-click POST marker.
+          emailHeaders = {
+            'List-Unsubscribe': `<${resolved.url}>`,
+            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          };
+        }
+      }
       const payload = JSON.stringify({
         from,
         to: [to],
         subject: messageSubject(envelope?.message, envelope?.alert),
         text: messageText(envelope?.message, envelope?.alert),
+        ...(emailHeaders ? { headers: emailHeaders } : {}),
       });
       try {
         const { statusCode, bodyText } = await postProvider(`${baseUrl}/emails`, {
