@@ -147,6 +147,27 @@ same transparency pattern as DOGS Remote's attempt log.
    - **NEXT:** the actual Postgres `store.js` swap (live DB + `pg` driver)
      — needs Brando's call on hosting; everything above is written to make
      that swap a one-file change.
+   - **BUILT (2026-09-09, jack/wax-postgres-store):** that one file —
+     `packages/core/src/store-postgres.js` (`createPostgresStore`,
+     `sqlCollection`, `POSTGRES_TABLES`), exported from `@wax/core`'s
+     index. All 20 collections run over SQL against the `schema.sql`
+     tables (composite keys for `follows`/`engine_state`, token-keyed
+     `sessions`, jsonb columns JSON-encoded, `text[]` passed through,
+     `timestamptz` normalized to ISO strings so rows stay JSON-safe like
+     the in-memory store), plus the async `createSession`/`userForToken`/
+     `endSession`/`latestPrice` helpers mirroring `store.js`. The `pg`
+     driver is *injected* (`{ client }` with `query(text, params)`), never
+     imported — zero deps, nothing to install, and the fake-client test
+     suite asserts every generated statement, so no live DB is needed to
+     review it. All user data travels in `$n` parameters; identifiers come
+     only from the fixed table map or validated row keys. The store is
+     fully async: call sites `await` the same calls (handlers/routes are
+     already async). Remaining before production: Brando's `pg` install +
+     `DATABASE_URL` wiring at boot, and the mechanical `await` pass at the
+     call sites that switch stores. Pinned by
+     `packages/core/test-store-postgres.mjs` (16 tests: guards, table map,
+     full Collection contract, injection resistance, JSON-safety, store
+     helpers).
    - **BUILT (2026-09-09, jack/wax-alert-engine):** tick scheduler —
      `packages/core/src/alert-scheduler.js` (`createAlertScheduler`)
      hooks `runEngine` into the wantlist batch path: each tick pulls a
