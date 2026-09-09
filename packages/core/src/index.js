@@ -18,6 +18,9 @@
  * | `tracking.js` | Per-site tracking config (alert engine gates 3+): add/      |
  * |               | update/remove/list merch sites with probe verdicts,        |
  * |               | pause and interval control, free-tier caps.                |
+ * | `notify.js`   | Alert delivery content (plan §3): drop email/SMS            |
+ * |               | formatting, digest folding, per-user rate-limit gate.      |
+ * |               | Pure decision logic — providers wire up later.             |
  *
  * Two consumers import from here and they get identical behaviour:
  *
@@ -52,6 +55,15 @@ export {
   FREE_SOURCE_LIMIT,
   MIN_SCAN_INTERVAL_SECS,
 } from './tracking.js';
+export {
+  formatPrice,
+  formatDropEmail,
+  formatDropSms,
+  formatDigest,
+  shouldDispatch,
+  SMS_PER_HOUR_CAP,
+  EMAIL_PER_HOUR_CAP,
+} from './notify.js';
 export {
   normalizeProduct,
   normalizeProductList,
