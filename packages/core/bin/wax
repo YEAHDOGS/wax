@@ -1,15 +1,107 @@
 #!/usr/bin/env node
 /**
- * `wax status` — the alert engine's watchlist view, from the terminal.
+ * `wax` — the Wax terminal interface.
  *
- * Usage:  node packages/core/bin/wax [user-id]
+ * Usage:
+ *   node packages/core/bin/wax [user-id]
+ *     → `wax status`: the alert engine's watchlist view, from the terminal.
+ *   node packages/core/bin/wax alert dispatch [--dry-run] [--live] [--limit N]
+ *     → drain the alert queue and deliver through the dispatch stage.
  *
- * Runs entirely against the seeded demo store: fixture data, no network,
- * no credentials. In production this same renderer takes the real store.
+ * Runs entirely against the seeded demo store and the Discogs-shaped
+ * fixtures: no network, no credentials, nothing leaves the machine.
+ *
+ * Dispatch mode defaults to DRY-RUN (the printing adapter): it shows
+ * exactly what would be sent and records dry-run delivery-log rows.
+ * `--live` resolves the real send adapters instead — with no live keys
+ * those are the NOT-WIRED stubs, which refuse loudly and dead-letter;
+ * nothing real can ever send until Brando supplies keys.
  */
 
-import { createStore, renderDashboard } from '../src/index.js';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const [userId] = process.argv.slice(2);
-const store = createStore();
-process.stdout.write(`${renderDashboard(store, userId ?? 'usr_test')}\n`);
+import {
+  createStore,
+  renderDashboard,
+  createAlertQueue,
+  createAlertScheduler,
+  createAlertPersistence,
+  createAlertDispatcher,
+  resolveSendAdapters,
+} from '../src/index.js';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const load = (name) => JSON.parse(readFileSync(join(here, '..', 'fixtures', name), 'utf8'));
+
+const [cmd, sub, ...rest] = process.argv.slice(2);
+
+if (cmd === 'alert' && sub === 'dispatch') {
+  await runAlertDispatch(rest);
+} else {
+  const userId = cmd ?? 'usr_test';
+  const store = createStore();
+  process.stdout.write(`${renderDashboard(store, userId)}\n`);
+}
+
+async function runAlertDispatch(flags) {
+  const live = flags.includes('--live');
+  const dryRun = flags.includes('--dry-run') || !live;
+  const limitFlag = flags.find((f) => f.startsWith('--limit='));
+  const limit = limitFlag ? Math.max(1, Number.parseInt(limitFlag.split('=')[1], 10) || 10) : Infinity;
+
+  const WANTS = load('wantlist.json').wants;
+  const RELEASES = load('discogs-releases.json').releases;
+
+  const store = createStore();
+  const queue = createAlertQueue();
+  const persistence = createAlertPersistence(store);
+  persistence.restoreQueueSeen(queue);
+
+  const scheduler = createAlertScheduler({
+    getReleases: () => RELEASES,
+    getWantlist: () => WANTS,
+    queue,
+    persistence,
+  });
+  const tick = await scheduler.tick();
+
+  const adapters = live ? resolveSendAdapters({ dev: false }) : {};
+  const wired =
+    live
+      ? { default: adapters.email, email: adapters.email, sms: adapters.sms }
+      : {};
+  const dispatchedBefore = new Set(store.alerts.all().map((r) => r.id));
+  const dispatcher = createAlertDispatcher({
+    queue,
+    persistence,
+    store,
+    dryRun,
+    adapters: wired,
+    out: process.stdout,
+  });
+  const report = await dispatcher.dispatchAll({ limit });
+
+  const mode = dryRun ? 'dry-run (nothing is sent)' : 'LIVE (NOT WIRED stubs without keys)';
+  process.stdout.write(`[wax] alert dispatch — ${mode}\n`);
+  process.stdout.write(`  tick: ${tick.queued.length} queued, ${tick.dupes.length} dupes, ${tick.capped.length} capped\n`);
+  process.stdout.write(`  drained: ${report.drained} → delivered: ${report.delivered.length}, failed: ${report.failed.length}\n`);
+  if (report.failed.length > 0) {
+    for (const f of report.failed) {
+      process.stdout.write(`    x ${f.event?.user_id} / ${f.event?.release_id}: ${f.receipt?.error ?? 'unknown'} (${f.attempts} attempts)\n`);
+    }
+  }
+  const rows = store.alerts
+    .all()
+    .filter((r) => r.dispatched_at != null && !dispatchedBefore.has(r.id))
+    .sort((a, b) => String(a.dispatched_at).localeCompare(String(b.dispatched_at)));
+  if (rows.length > 0) {
+    process.stdout.write('  delivery log:\n');
+    for (const r of rows) {
+      process.stdout.write(
+        `    ${r.user_id} — ${r.release_id} (${r.kind}) via ${(r.channels ?? []).join(', ') || 'none'} at ${r.dispatched_at}\n`,
+      );
+    }
+  }
+}
