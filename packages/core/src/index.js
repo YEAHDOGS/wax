@@ -36,6 +36,9 @@
  * |               | batching. Pure decision logic — the worker persists.        |
  * | `dashboard.js`| Watchlist status view (plan §4 item 6): artists, sites,    |
  * |               | alerts as plain text. Pure render — see `bin/wax`.         |
+ * | `digest.js`   | Digest queue (plan §3, the rest of notify's rate contract):   |
+ * |               | queue held-back deliveries, flush due digest emails with  |
+ * |               | quiet-hours gating. Channel is injected — zero network.    |
  *
  * Two consumers import from here and they get identical behaviour:
  *
@@ -146,3 +149,10 @@ export {
   buildDigestBatch,
   ROUTE,
 } from './rules.js';
+export {
+  DIGEST_MIN_INTERVAL_MS,
+  DIGEST_MAX_AGE_MS,
+  DIGEST_MAX_ITEMS,
+  queueHeldAlerts,
+  flushDigestQueue,
+} from './digest.js';
