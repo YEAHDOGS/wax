@@ -43,7 +43,15 @@ import { runEngine } from './alert-engine.js';
  * @param {() => number} [input.now] Clock, defaults to `Date.now`.
  * @param {Record<string, object>} [input.prevStates] Seed prior state
  *   (from a previous run / Postgres later); the scheduler owns and
- *   mutates the returned copy.
+ *   mutates the returned copy. Ignored when `persistence` is provided —
+ *   the durable store wins.
+ * @param {object} [input.persistence] A `createAlertPersistence`
+ *   persistence object. When present, the scheduler loads `prevStates`
+ *   from the store before the first tick and upserts them after every
+ *   tick, so a restart never re-fires known releases. A failed save is
+ *   thrown, not swallowed: silently losing engine state means re-alerting
+ *   every user on the next tick. Call `persistence.restoreQueueSeen(queue)`
+ *   before constructing the scheduler to replay dispatched alerts too.
  * @param {(report: object) => void} [input.onTick] Called after each
  *   tick with the tick report.
  * @returns {{ tick: Function, start: Function, stop: Function, running: Function, ticks: Function, prevStates: Function }}
@@ -54,6 +62,7 @@ export function createAlertScheduler({
   queue,
   now = () => Date.now(),
   prevStates = {},
+  persistence = null,
   onTick = null,
 } = {}) {
   if (typeof getReleases !== 'function') {
@@ -65,8 +74,15 @@ export function createAlertScheduler({
   if (!queue || typeof queue.enqueue !== 'function') {
     throw new TypeError('alert scheduler needs an alert queue');
   }
+  if (
+    persistence != null &&
+    (typeof persistence.loadPrevStates !== 'function' ||
+      typeof persistence.savePrevStates !== 'function')
+  ) {
+    throw new TypeError('alert scheduler persistence needs loadPrevStates/savePrevStates functions');
+  }
 
-  let states = { ...prevStates };
+  let states = persistence ? persistence.loadPrevStates() : { ...prevStates };
   let timer = null;
   let tickCount = 0;
 
@@ -88,6 +104,10 @@ export function createAlertScheduler({
       nowMs: tickMs,
     });
     states = nextStates;
+
+    // Durable memory: upsert engine state after every tick. A throw here
+    // is deliberate — silently losing state re-alerts every user.
+    await persistence?.savePrevStates(states);
 
     const { queued, dupes, capped } = queue.enqueue(events);
 
