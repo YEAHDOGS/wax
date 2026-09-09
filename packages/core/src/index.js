@@ -222,6 +222,9 @@ export {
   createDropScheduler,
 } from './drop-scheduler.js';
 export {
+  createDropCron,
+} from './drop-cron.js';
+export {
   DIGEST_MIN_INTERVAL_MS,
   DIGEST_MAX_AGE_MS,
   DIGEST_MAX_ITEMS,
