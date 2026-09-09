@@ -91,6 +91,33 @@ same transparency pattern as DOGS Remote's attempt log.
     --dry-run` runs tick → dispatch → prints the delivery log; `--live`
     resolves the NOT-WIRED stubs and dead-letters loudly. Pinned by
     `packages/core/test-alert-dispatcher.mjs` (19 tests).
+  - **BUILT (2026-09-09, jack/wax-api-await):** the drop-alert scheduler —
+    `packages/core/src/drop-scheduler.js` (`createDropScheduler`) is the
+    decision layer between tracked releases and the DISPATCH boundary:
+    each pass scores releases against user alert rules with the same
+    `evaluateWatchRule` the scan path uses (one implementation of every
+    rule), dedupes in-batch by release+user (two rules, one release, one
+    alert), and enforces a cooldown window (default 1 week, configurable)
+    so a user never gets the same alert twice — a restock *after* the
+    window can re-alert, which is the correct product behavior. Due
+    alerts go to the pure DISPATCH boundary (`dispatch(alert) =>
+    Promise<receipt>`); a pair is marked sent only on `{ ok: true }`
+    receipts — refusals and throws retry on the next pass, never go
+    silent. `restoreSent` replays durable `alerts` rows into the cooldown
+    map on boot, so a restart never re-alerts. `createTestDispatch` is
+    the TEST-MODE stub: it records every envelope in-memory (`stub.sent()`,
+    envelopes copied so caller mutation can't corrupt the log) and returns
+    `{ ok: true, testMode: true }` — no socket is ever opened, so network
+    sends are structurally impossible in tests. Exported from `@wax/core`.
+    Pinned by `packages/core/test-drop-scheduler.mjs` (12 tests: rule
+    matching, price gating, in-batch dedupe, cooldown suppression +
+    expiry, failure retry, restart recipe, stub recording).
+  - **NEXT:** wire the scheduler's cooldown map to the durable `alerts`
+    rows at boot (the store's `alerts` table has `release_id` and
+    `dispatched_at` — `restoreSent` takes those rows directly), and hang
+    the per-minute cron's `runPass({ releases, rules, dispatch })` off the
+    board path so tracked-release drops flow through the same dispatch
+    receipts as the scan path.
 - Alert content: artist, title, price, source link, "buy" deep link.
 - Per-user rate limit so a restock flood doesn't send 40 texts.
 
