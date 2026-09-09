@@ -105,8 +105,25 @@ same transparency pattern as DOGS Remote's attempt log.
      `packages/core/test-alert-engine.mjs` (7 tests), `test-alert-queue.mjs`
      (10), `test-send-adapters.mjs` (10).
    - **NEXT:** persist `prevStates` + the queue's seen-set in Postgres with
-     the `alerts` table; hook `runEngine` into the scan worker's Discogs
-     batch path once the probe ships.
+     the `alerts` table.
+   - **BUILT (2026-09-09, jack/wax-alert-engine):** tick scheduler —
+     `packages/core/src/alert-scheduler.js` (`createAlertScheduler`)
+     hooks `runEngine` into the wantlist batch path: each tick pulls a
+     Discogs-shaped batch from the injected `getReleases()` provider
+     (fixtures in dev, Discogs probe later — the scheduler itself never
+     touches the network), runs the engine against `getWantlist()` and
+     the scheduler-owned `prevStates`, and enqueues events into the
+     alert queue where dedupe + the per-user rate cap still hold.
+     State survives between ticks, so an unchanged batch goes quiet
+     and an alert fires once. `start(intervalMs)`/`stop()` run the
+     sweep on an interval without overlapping in-flight ticks. Sending
+     stays behind the send-adapter seam — disabled stubs still return
+     `{ ok: false }` NOT-WIRED receipts. Exported from
+     `packages/core/src/index.js`. Pinned by
+     `packages/core/test-alert-scheduler.mjs` (10 tests: tick-to-queue
+     wiring, steady-state quiet, price-drop re-fire, rate-cap flood,
+     disabled adapters never send, console adapter in-memory sends,
+     start/stop, constructor guards, onTick report).
 5. Alert delivery (Resend, then Twilio). — done (adapters wired, key-gated; live keys pending from Brando)
 6. UI: add artist, add site, scan status dashboard, alert history. — done (`dashboard.js`, `alert-history.js`)
    - **BUILT (2026-09-09, jack/wax-alert-history):** `renderAlertHistory(store, userId, { state })` in
