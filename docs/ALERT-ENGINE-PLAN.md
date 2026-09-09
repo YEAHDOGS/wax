@@ -70,6 +70,27 @@ same transparency pattern as DOGS Remote's attempt log.
   - **LIVE SENDS PENDING:** Brando still needs to supply `RESEND_API_KEY`
     and `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` — nothing in the codebase
     carries real credentials, by design.
+  - **BUILT (2026-09-09, jack/wax-alert2):** the dispatch stage —
+    `packages/core/src/alert-dispatcher.js` (`createAlertDispatcher`) drains
+    the queue (priority order) and delivers through pluggable adapters
+    registered by channel name via `registerAdapter` — the future Resend
+    email adapter plugs in with one call, no dispatcher changes. The
+    DEFAULT adapter is the dry-run printer (`createDryRunAdapter`, new in
+    `send-adapters.js`): it prints exactly what would be sent and returns
+    `{ ok: true, dryRun: true }` receipts — dev/staging send nothing, ever.
+    Exactly-once: the queue's seen-set dedupes, the dispatcher re-marks it
+    after delivery, and every success writes a durable `alerts` row
+    (`recordAlert`) — the per-user delivery log (user_id, release_id,
+    dispatched_at, adapter name in `channels`) — which `restoreQueueSeen`
+    replays after a restart, so nothing re-delivers across reboots.
+    Failures never lose alerts: `{ ok: false }` receipts, thrown errors,
+    and garbage receipts all retry in-process up to `maxAttempts`, then
+    dead-letter (inspectable via `deadLetter()`, revivable via
+    `redispatchDead()`); a missing channel is a loud NO ADAPTER refusal,
+    never a silent drop. CLI: `node packages/core/bin/wax alert dispatch
+    --dry-run` runs tick → dispatch → prints the delivery log; `--live`
+    resolves the NOT-WIRED stubs and dead-letters loudly. Pinned by
+    `packages/core/test-alert-dispatcher.mjs` (19 tests).
 - Alert content: artist, title, price, source link, "buy" deep link.
 - Per-user rate limit so a restock flood doesn't send 40 texts.
 
