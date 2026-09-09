@@ -30,6 +30,7 @@
 
 import { store as defaultStore, newId } from './store.js';
 import { renderAlertHistory } from './alert-history.js';
+import { renderAlertDetail } from './alert-detail.js';
 
 /**
  * An error carrying the HTTP status it should become.
@@ -335,6 +336,26 @@ export function alertCounts(token, { store = defaultStore } = {}) {
 export function alertHistory(token, { state = 'all' } = {}, { store = defaultStore } = {}) {
   const user = requireUser(token, { store });
   return renderAlertHistory(store, user.id, { state });
+}
+
+/**
+ * One alert as a standalone static HTML page — the target of the row links on
+ * the history page.
+ *
+ * The alert is looked up scoped to the session user: asking for another
+ * user's alert id, or a nonexistent one, is the same 404. No id oracle here.
+ *
+ * @param {?string} token
+ * @param {string} alertId
+ * @param {object} [deps]
+ * @param {typeof defaultStore} [deps.store]
+ * @returns {string} A complete HTML document.
+ */
+export function alertDetail(token, alertId, { store = defaultStore } = {}) {
+  const user = requireUser(token, { store });
+  const alert = store.alerts.find((a) => a.id === alertId && a.user_id === user.id);
+  if (!alert) throw notFound('Alert');
+  return renderAlertDetail(store, alert);
 }
 
 /**

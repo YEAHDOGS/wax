@@ -98,7 +98,7 @@ export function renderAlertHistory(store, userId, { state = 'all' } = {}) {
       return `      <li data-id="${esc(a.id)}">
         <span class="state">[${esc(a.state)}]</span>
         ${a.read_at === null ? '<span class="unread">unread</span>' : ''}
-        <strong>${artist ? `${esc(artist)} — ` : ''}${esc(title)}</strong>
+        <strong><a href="?id=${esc(a.id)}">${artist ? `${esc(artist)} — ` : ''}${esc(title)}</a></strong>
         <span class="kind">${esc(kind)}</span>
         <span class="price">${esc(money(a.price_cents))}</span>
         <span class="when">${esc(when(a.detected_at))}</span>
