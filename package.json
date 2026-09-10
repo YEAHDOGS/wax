@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "npm run dev --workspace @wax/web",
     "build": "npm run build --workspace @wax/web",
-    "preview": "npm run preview --workspace @wax/web"
+    "preview": "npm run preview --workspace @wax/web",
+    "test": "npm run test --workspace @wax/engine"
   }
 }
