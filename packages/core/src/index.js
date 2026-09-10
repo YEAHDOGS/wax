@@ -259,3 +259,10 @@ export {
   checkPressingMatch,
   watchRuleFromVerdict,
 } from './price-verdict.js';
+export {
+  normalizeCode,
+  createReleaseResolver,
+  createFixtureResolver,
+  createMarketplaceStatsCache,
+  runCrateScan,
+} from './crate-scan.js';
