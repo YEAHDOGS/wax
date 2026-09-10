@@ -203,8 +203,20 @@ same transparency pattern as DOGS Remote's attempt log.
      mapping, loud skips, throw-on-bad-payload, engine new→quiet,
      price_drop fires once, scheduler tick wiring, `onSkipped`). Full core
      suite: 376/376 green (34 files).
-   - **NEXT:** persist `prevStates` + the queue's seen-set in Postgres with
-     the `alerts` table.
+   - **BUILT (2026-09-09, jack/wax-postgres-restart-20260909):** Postgres
+     restart-recipe conformance — `packages/core/test-alert-persistence-postgres.mjs`
+     pins the `createAlertPersistence` ⇄ `createPostgresStore` handshake with
+     exact SQL assertions over a fake client (no live DB, no network):
+     `savePrevStates` INSERTs `engine_state` rows with the `state` object
+     JSON-encoded, re-saves UPDATE with the composite `(user_id, state_key)`
+     WHERE (never duplicates), `loadPrevStates` SELECTs and rebuilds the
+     exact `prevStateKey` entries `runEngine` consumes, `recordAlert` INSERTs
+     durable `alerts` rows with the engine→board kind mapping, and
+     `restoreQueueSeen` replays dispatched `alerts` rows into the queue's
+     seen-set so a restart never re-alerts. Hostile user ids / state keys
+     travel only in `$n` params, never interpolated. The line-206 NEXT is
+     done; the remaining Postgres work is still the `pg` install + live
+     boot smoke test (Brando's call).
    - **BUILT (2026-09-09, jack/wax-alert2):** engine-state persistence —
      `packages/core/src/alert-persistence.js` (`createAlertPersistence`):
      `savePrevStates`/`loadPrevStates` upsert `runEngine`'s prior-state map
