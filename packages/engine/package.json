@@ -1,0 +1,14 @@
+{
+  "description": "Wax alert engine \u2014 pure, deterministic rule matching and evaluation. Made by DOGS.",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "main": "./src/index.js",
+  "name": "@wax/engine",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/matchers.test.js test/evaluate.test.js test/adapters.test.js"
+  },
+  "type": "module",
+  "version": "0.1.0"
+}
