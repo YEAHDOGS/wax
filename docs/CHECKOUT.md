@@ -49,7 +49,17 @@ deployment-owned env vars. Nothing here is ever committed to the repo.
    `checkout.session.completed` call `activateSeries(userId,
    subscriptionId)` — the only function allowed to move a user to `series`.
    Verify the session against `getCheckoutSession()` (stub registry today,
-   Stripe session lookup after) before activating.
+   Stripe session lookup after) before activating. Then send the receipt:
+   `renderReceiptEmail(user, session)` builds the email (subject/text/HTML,
+   HTML-escaped, test-mode receipts say plainly that no charge happened)
+   and `sendBillingReceipt({ user, session, emailChannel })` sends it
+   through the existing channel seam — both live in
+   `packages/core/src/billing-receipt.js`, pinned by
+   `test-billing-receipt.mjs`. No email on the user row is an `{ ok: false }`
+   `no_email_on_file` receipt, never a throw, so a receipt failure can
+   never take down the activation. The receipt shows the session's
+   `amount_cents`, not the catalog price — if they ever differ, the
+   receipt shows what moved.
 5. **Flip the page script** from `mode: 'test'` to `mode: 'live'` and
    redeploy. Staging keeps `test` forever; production is the only place
    `live` should ever be requested.

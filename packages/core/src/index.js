@@ -71,6 +71,12 @@ export {
   checkoutSession,
   getCheckoutSession,
 } from './billing.js';
+export {
+  formatMoney,
+  escapeHtml,
+  renderReceiptEmail,
+  sendBillingReceipt,
+} from './billing-receipt.js';
 export { store, createStore, newId, newToken } from './store.js';
 export { createPostgresStore, sqlCollection, POSTGRES_TABLES } from './store-postgres.js';
 export { resolveStore } from './store-resolve.js';
