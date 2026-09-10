@@ -81,7 +81,25 @@ both this card and the alert engine.
 ## Build order
 
 1. Release resolution from barcode/catalog# (Discogs search).
+   - **BUILT (2026-09-09, jack/wax-checkout-v1):** the scan pipeline —
+     `packages/core/src/crate-scan.js` (`normalizeCode`,
+     `createReleaseResolver`, `createMarketplaceStatsCache`,
+     `runCrateScan`), exported from `@wax/core`. UPC-A/EAN-8/EAN-13 vs
+     catalog# classification (digits-only barcodes, dashes kept on cat#s);
+     the resolution seam takes an injected `search` (the live Discogs
+     call lives in the service layer — core opens zero sockets) and
+     resolves loud statuses: `found`, `ambiguous` (multiple pressings
+     matched → the buyer picks, the engine never guesses), `not_found`.
+     `createFixtureResolver()` resolves the Doggystyle fixture so tests
+     stay hermetic. Pinned by `packages/core/test-crate-scan.mjs`
+     (14 tests). The live Discogs `/database/search` adapter for the
+     service layer is still pending — Brando's call on wiring keys there.
 2. Marketplace stats pull per release ID, cached per scan session.
+   - **BUILT (2026-09-09, jack/wax-checkout-v1):** `createMarketplaceStatsCache`
+     — exactly one pull per release per scan session (grade/price
+     what-ifs re-render from cache, no re-pull), and every result carries
+     `is_asking_prices: true` because Discogs stats are what sellers are
+     *asking*, never solds — the card must label them that way.
 3. Verdict card UI (mobile-first — this is used standing in a store).
    - **BUILT (2026-09-09, jack/wax-price-verdict):** the verdict engine —
      `packages/core/src/price-verdict.js` (`summarizeMarketplaceStats`,
@@ -92,8 +110,8 @@ both this card and the alert engine.
      the reissue guardrail — all pure, all fixture-driven (no network).
      Pinned by `packages/core/test-price-verdict.mjs` (11 tests) on a
      `fixtures/doggystyle-marketplace.json` snapshot drawn from the
-     2026-09-09 Doggystyle market note. UI card and the barcode/catalog#
-     Discogs resolution are still pending.
+     2026-09-09 Doggystyle market note. Barcode/catalog# resolution is now built
+     (`crate-scan.js` — build-order steps 1–2); the verdict card UI is still pending.
 4. "Alert me" handoff → existing watch-rule creation.
    - **BUILT (2026-09-09, jack/wax-price-verdict):** `watchRuleFromVerdict`
      in `price-verdict.js` converts a price check into a `Watch`-shaped
