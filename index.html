@@ -1,24 +1,396 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Wax — don't miss the next release</title>
-    <meta
-      name="description"
-      content="Wax watches Discogs for the artists you follow and tells you the moment a vinyl variant exists — by push, email and text — while there are still copies."
-    />
-    <meta name="theme-color" content="#14110E" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap"
-      rel="stylesheet"
-    />
-    <script type="module" crossorigin src="/wax/assets/index-BAKkd9d9.js"></script>
-    <link rel="stylesheet" crossorigin href="/wax/assets/index-DbAK_l6i.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Wax — Never Miss a Drop</title>
+<meta name="description" content="Wax watches Discogs for the artists you follow and texts you the moment a new vinyl variant drops. Free for 3 artists; $10/mo unlimited." />
+<meta name="theme-color" content="#14110E" />
+<link rel="canonical" href="https://yeahdogs.github.io/wax/" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Wax — Never Miss a Drop" />
+<meta property="og:description" content="Real-time vinyl drop alerts, built on Discogs data. Text and email the second a variant surfaces." />
+<meta property="og:url" content="https://yeahdogs.github.io/wax/" />
+<meta property="og:image" content="https://yeahdogs.github.io/wax/og/wax-og.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="icon" href="/wax/favicon.ico" sizes="32x32" />
+<link rel="icon" type="image/svg+xml" href="/wax/favicon.svg" />
+<link rel="apple-touch-icon" href="/wax/apple-touch-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebSite","name":"Wax","url":"https://yeahdogs.github.io/wax/"}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"What does Wax watch?","acceptedAnswer":{"@type":"Answer","text":"Vinyl releases and merch from the artists you follow, built on Discogs data."}},
+{"@type":"Question","name":"How do alerts reach me?","acceptedAnswer":{"@type":"Answer","text":"Text and email, in real time, the moment a variant surfaces."}},
+{"@type":"Question","name":"What does it cost?","acceptedAnswer":{"@type":"Answer","text":"Free for up to 3 artists or items. $10 a month lifts the limit, with a 30-day free trial."}},
+{"@type":"Question","name":"Where does the data come from?","acceptedAnswer":{"@type":"Answer","text":"Discogs: release metadata and marketplace listings."}},
+{"@type":"Question","name":"Is there a phone app?","acceptedAnswer":{"@type":"Answer","text":"Web today. iOS and Android are next."}}
+]}
+</script>
+<style>
+:root{
+  --ink:#14110E; --stock:#E4E2DA; --verm:#F03C0B; --verm-deep:#A82404;
+  --ink-70:#5A544D; --stock-60:#9A968C;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--ink);color:var(--stock);font-family:Archivo,Helvetica Neue,Arial,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+::selection{background:var(--verm);color:var(--ink)}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--verm);outline-offset:3px}
+
+/* type */
+.sleeve{font-weight:900;letter-spacing:-.045em;line-height:.86;font-stretch:118%;font-variation-settings:'wdth' 118;text-transform:uppercase}
+.display{font-weight:800;letter-spacing:-.03em;line-height:.94;font-variation-settings:'wdth' 105;text-transform:uppercase}
+.headline{font-weight:700;letter-spacing:-.02em;line-height:1.06}
+.label{font-size:.6875rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+.data{font-family:"Courier Prime","Courier New",monospace;font-size:.8125rem;line-height:1.5;letter-spacing:.01em}
+
+/* header */
+header{position:fixed;top:0;left:0;right:0;z-index:50;background:var(--ink);border-bottom:2px solid transparent;transition:border-color .25s}
+header.scrolled{border-bottom-color:#2b251d}
+.hbar{max-width:1200px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:20px}
+.brand{font-weight:900;letter-spacing:-.03em;font-size:1.25rem;text-decoration:none;display:flex;align-items:center;gap:10px}
+.brand .dot{width:12px;height:12px;background:var(--verm);display:inline-block}
+nav{margin-left:auto;display:flex;gap:22px;align-items:center}
+nav a{font-size:.6875rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;text-decoration:none;color:var(--stock-60)}
+nav a:hover{color:var(--stock)}
+.btn{display:inline-block;background:var(--verm);color:var(--ink);font-size:.6875rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;text-decoration:none;padding:16px 28px;border:2px solid var(--verm);cursor:pointer;transition:background .18s,color .18s}
+.btn:hover{background:var(--ink);color:var(--verm)}
+.btn.ghost{background:transparent;color:var(--stock);border-color:var(--stock-60)}
+.btn.ghost:hover{border-color:var(--stock);background:var(--stock);color:var(--ink)}
+.btn.small{padding:12px 20px}
+@media(max-width:640px){nav .navlink{display:none}}
+
+/* hero */
+.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;padding:110px 20px 0;max-width:1200px;margin:0 auto;position:relative}
+.hero .mark{color:var(--stock-60);margin-bottom:18px}
+.hero h1{font-size:clamp(3.2rem,14vw,10rem);max-width:10ch}
+.hero .rule{width:min(420px,60vw);height:10px;background:var(--verm);margin:26px 0}
+.hero p.sub{font-size:clamp(1rem,2.6vw,1.25rem);line-height:1.5;max-width:34ch;color:var(--stock)}
+.hero .cta{display:flex;gap:14px;flex-wrap:wrap;margin-top:30px}
+
+/* vinyl */
+.stage{position:relative;height:min(72vw,340px);margin:44px 0 10px;display:flex;justify-content:center}
+.vinyl{width:min(72vw,340px);height:min(72vw,340px);border-radius:50%;
+  background:repeating-radial-gradient(circle,#050403 0 1px,#211b14 1px 3px);
+  position:relative;animation:spin 14s linear infinite;flex:none}
+.vinyl::after{content:"";position:absolute;inset:33%;border-radius:50%;background:var(--verm)}
+.vinyl::before{content:"33\2153";position:absolute;inset:33%;z-index:1;display:flex;align-items:center;justify-content:center;color:var(--ink);font-size:.6875rem;font-weight:700;letter-spacing:.12em}
+@keyframes spin{to{transform:rotate(360deg)}}
+.caption{text-align:center;color:var(--stock-60);margin-bottom:8px}
+
+/* ticker */
+.ticker{border-top:2px solid #2b251d;border-bottom:2px solid #2b251d;overflow:hidden;white-space:nowrap;margin:40px 0 0}
+.ticker .track{display:inline-block;padding:14px 0;animation:tick 32s linear infinite}
+.ticker span{font-size:.8125rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--stock-60);padding:0 26px}
+.ticker span b{color:var(--verm);font-weight:700}
+@keyframes tick{to{transform:translateX(-50%)}}
+
+/* sections */
+section{padding:clamp(64px,9vw,140px) 20px}
+.wrap{max-width:1200px;margin:0 auto}
+.kicker{color:var(--verm);margin-bottom:16px}
+h2.sec{font-size:clamp(2.2rem,7vw,4.5rem);max-width:14ch;margin-bottom:8px}
+
+/* origin: vermilion field */
+.origin{background:var(--verm);color:var(--ink)}
+.origin .kicker{color:var(--ink)}
+.origin h2{font-size:clamp(2rem,6.5vw,4rem);max-width:20ch}
+.origin .rule{width:min(300px,50vw);height:8px;background:var(--ink);margin:24px 0}
+.origin p{font-size:clamp(1.05rem,2.8vw,1.35rem);line-height:1.45;max-width:36ch;font-weight:500}
+.origin .data{margin-top:26px;opacity:.85}
+
+/* engine beats */
+.beats{display:grid;gap:0;margin-top:44px;border-top:2px solid #2b251d}
+.beat{padding:38px 0;border-bottom:2px solid #2b251d;display:grid;gap:14px}
+@media(min-width:900px){
+  .beat{grid-template-columns:1fr 1fr;gap:40px;align-items:start}
+  .beat:nth-child(even) .beat-copy{order:2}
+}
+.beat h3{font-size:clamp(1.6rem,4vw,2.6rem)}
+.beat .n{color:var(--verm)}
+.beat p{color:var(--stock);line-height:1.55;max-width:38ch}
+.alert{background:#0d0b08;border:2px solid #2b251d;padding:22px;max-width:420px}
+.alert .ah{color:var(--verm);margin-bottom:12px}
+.alert table{width:100%;border-collapse:collapse}
+.alert td{padding:5px 0;vertical-align:top}
+.alert td.k{color:var(--stock-60);width:34%}
+.alert .tag{display:inline-block;background:var(--verm);color:var(--ink);font-size:.625rem;font-weight:700;letter-spacing:.14em;padding:4px 8px;margin-bottom:12px;text-transform:uppercase}
+
+/* pricing: stock field */
+.pricing{background:var(--stock);color:var(--ink)}
+.pricing .kicker{color:var(--verm-deep)}
+.plans{display:grid;gap:2px;background:var(--ink);border:2px solid var(--ink);margin-top:40px}
+@media(min-width:760px){.plans{grid-template-columns:1fr 1fr}}
+.plan{background:var(--stock);padding:38px 30px;display:flex;flex-direction:column;gap:14px}
+.plan .price{font-size:clamp(2.6rem,7vw,4rem)}
+.plan ul{list-style:none;display:grid;gap:8px;margin:6px 0 12px}
+.plan li{padding-left:22px;position:relative;line-height:1.5}
+.plan li::before{content:"";position:absolute;left:0;top:9px;width:10px;height:10px;background:var(--verm)}
+.plan .btn{align-self:flex-start;margin-top:auto}
+.pricing .fine{margin-top:22px;color:var(--ink-70);max-width:52ch;line-height:1.55}
+
+/* faq */
+.faq-list{margin-top:36px;border-top:2px solid #2b251d;max-width:860px}
+.faq-item{border-bottom:2px solid #2b251d}
+.faq-q{width:100%;background:none;border:0;color:var(--stock);text-align:left;padding:22px 40px 22px 0;cursor:pointer;position:relative;font-size:clamp(1.05rem,2.8vw,1.4rem);font-weight:700;letter-spacing:-.01em;font-family:inherit}
+.faq-q::after{content:"+";position:absolute;right:4px;top:20px;color:var(--verm);font-size:1.6rem;font-weight:400}
+.faq-item.open .faq-q::after{content:"\2013"}
+.faq-a{max-height:0;overflow:hidden;transition:max-height .3s ease}
+.faq-a p{padding:0 0 24px;color:var(--stock);line-height:1.6;max-width:56ch}
+.faq-item.open .faq-a{max-height:220px}
+
+/* footer */
+footer{border-top:2px solid #2b251d;padding:56px 20px 120px}
+@media(min-width:641px){footer{padding-bottom:56px}}
+.fwrap{max-width:1200px;margin:0 auto;display:grid;gap:28px}
+.flink{display:flex;gap:22px;flex-wrap:wrap}
+.flink a{font-size:.6875rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;text-decoration:none;color:var(--stock-60)}
+.flink a:hover{color:var(--stock)}
+.made{font-size:.8125rem;color:var(--stock-60)}
+.made a{color:var(--stock);text-decoration:underline;text-underline-offset:3px}
+.cookies{color:var(--stock-60)}
+.cat{color:#3d382f}
+
+/* reveal */
+.rv{opacity:0;transform:translateY(26px);transition:opacity .6s ease,transform .6s ease}
+.rv.in{opacity:1;transform:none}
+.hero .rv{animation:rise .7s ease forwards}
+.hero .rv.d1{animation-delay:.08s}.hero .rv.d2{animation-delay:.16s}.hero .rv.d3{animation-delay:.24s}.hero .rv.d4{animation-delay:.32s}
+@keyframes rise{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+
+/* sticky mobile cta */
+.sticky{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--ink);border-top:2px solid #2b251d;padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:none}
+.sticky .btn{width:100%;text-align:center}
+@media(max-width:640px){.sticky{display:block}}
+
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .rv{opacity:1;transform:none}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+
+<header id="hdr">
+  <div class="hbar">
+    <a class="brand" href="/wax/" aria-label="Wax home"><span class="dot" aria-hidden="true"></span>WAX</a>
+    <nav aria-label="Primary">
+      <a class="navlink" href="#engine">The engine</a>
+      <a class="navlink" href="#pricing">Pricing</a>
+      <a class="navlink" href="#faq">FAQ</a>
+      <a class="btn small" href="/wax/app/">Open the app</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <p class="label mark rv">Wax 4000 series &mdash; drop alerts</p>
+    <h1 class="sleeve rv d1">Never miss a drop.</h1>
+    <div class="rule rv d2" aria-hidden="true"></div>
+    <p class="sub rv d3">Wax watches Discogs for the artists you follow. When a new vinyl variant surfaces, your phone buzzes. Text and email, while copies still exist.</p>
+    <div class="cta rv d4">
+      <a class="btn" href="/wax/app/">Open the app</a>
+      <a class="btn ghost" href="#pricing">See pricing</a>
+    </div>
+    <div class="stage rv d4" aria-hidden="true"><div class="vinyl"></div></div>
+    <p class="data caption rv d4">WAX-4001 &mdash; SIDE A &mdash; 33&#8533; RPM</p>
+  </div>
+
+  <div class="ticker" aria-hidden="true">
+    <div class="track" id="tickerTrack">
+      <span>Real-time drop alerts <b>&#9632;</b></span><span>Discogs marketplace prices <b>&#9632;</b></span><span>Text + email the second it drops <b>&#9632;</b></span><span>Catalog your shelves <b>&#9632;</b></span><span>Find your crate-diggers <b>&#9632;</b></span>
+    </div>
+  </div>
+
+  <section class="origin" aria-labelledby="origin-h">
+    <div class="wrap">
+      <p class="label kicker rv">Why Wax exists</p>
+      <h2 class="display rv" id="origin-h">BT, <i>This Binary Universe</i>, on vinyl. Sold out before most collectors knew it existed.</h2>
+      <div class="rule rv" aria-hidden="true"></div>
+      <p class="rv">One missed drop is one too many. Wax texts you the moment the next one surfaces.</p>
+      <p class="data rv">EXHIBIT A &mdash; THE ONE THAT GOT AWAY</p>
+    </div>
+  </section>
+
+  <section id="engine" aria-labelledby="engine-h">
+    <div class="wrap">
+      <p class="label kicker rv">The engine</p>
+      <h2 class="display sec rv" id="engine-h">Built like a label. Runs like a wire service.</h2>
+      <div class="beats">
+        <div class="beat rv">
+          <div class="beat-copy">
+            <h3 class="headline"><span class="n">01 /</span> The alert</h3>
+            <p>Follow an artist. Wax watches every Discogs listing around the clock. New variant? Text and email in real time, while copies still exist.</p>
+          </div>
+          <div class="alert" aria-label="Sample drop alert">
+            <span class="tag">Sample alert</span>
+            <p class="label ah">WAX-4021 &mdash; variant found</p>
+            <table class="data">
+              <tr><td class="k">Artist</td><td>the one you follow</td></tr>
+              <tr><td class="k">Format</td><td>2&times;LP, colored vinyl</td></tr>
+              <tr><td class="k">Status</td><td>in stock, 14 copies</td></tr>
+              <tr><td class="k">Sent</td><td>41 seconds after listing</td></tr>
+            </table>
+          </div>
+        </div>
+        <div class="beat rv">
+          <div class="beat-copy">
+            <h3 class="headline"><span class="n">02 /</span> The price</h3>
+            <p>Track any listing. Wax follows Discogs marketplace prices over time, so you buy for less instead of overpaying at peak hype.</p>
+          </div>
+          <div class="alert" aria-hidden="true">
+            <span class="tag">Price watch</span>
+            <p class="label ah">WAX-4022 &mdash; price moved</p>
+            <table class="data">
+              <tr><td class="k">Listing</td><td>the one you are watching</td></tr>
+              <tr><td class="k">Was</td><td>$48.00</td></tr>
+              <tr><td class="k">Now</td><td>$32.00</td></tr>
+              <tr><td class="k">Drop</td><td>-33% this week</td></tr>
+            </table>
+          </div>
+        </div>
+        <div class="beat rv">
+          <div class="beat-copy">
+            <h3 class="headline"><span class="n">03 /</span> The shelf</h3>
+            <p>Catalog every record you own in one place. Then find the collectors whose taste overlaps yours, and dig together.</p>
+          </div>
+          <div class="alert" aria-hidden="true">
+            <span class="tag">Your shelf</span>
+            <p class="label ah">WAX-4023 &mdash; cataloged</p>
+            <table class="data">
+              <tr><td class="k">Records</td><td>every one you own</td></tr>
+              <tr><td class="k">Wantlist</td><td>synced with Discogs</td></tr>
+              <tr><td class="k">Crew</td><td>collectors like you</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pricing" id="pricing" aria-labelledby="pricing-h">
+    <div class="wrap">
+      <p class="label kicker rv">Pricing</p>
+      <h2 class="display sec rv" id="pricing-h">Free until three artists stop being enough.</h2>
+      <div class="plans">
+        <div class="plan rv">
+          <p class="label">Free</p>
+          <p class="display price">$0</p>
+          <ul>
+            <li>Track 3 artists or items</li>
+            <li>Full Discogs price tracking</li>
+            <li>Your whole catalog</li>
+          </ul>
+          <a class="btn" href="/wax/app/">Open the app</a>
+        </div>
+        <div class="plan rv">
+          <p class="label">Unlimited</p>
+          <p class="display price">$10<span style="font-size:1.2rem">/mo</span></p>
+          <ul>
+            <li>Unlimited artists and alerts</li>
+            <li>Everything in Free</li>
+            <li>30-day free trial</li>
+          </ul>
+          <a class="btn" href="/wax/app/">Open the app</a>
+        </div>
+      </div>
+      <p class="fine rv">Start free in the app. Move up when three artists stop being enough. Cancel anytime.</p>
+    </div>
+  </section>
+
+  <section id="faq" aria-labelledby="faq-h">
+    <div class="wrap">
+      <p class="label kicker rv">FAQ</p>
+      <h2 class="display sec rv" id="faq-h">Asked, answered.</h2>
+      <div class="faq-list">
+        <div class="faq-item rv">
+          <button class="faq-q" aria-expanded="false">What does Wax watch?</button>
+          <div class="faq-a"><p>Vinyl releases and merch from the artists you follow, built on Discogs data.</p></div>
+        </div>
+        <div class="faq-item rv">
+          <button class="faq-q" aria-expanded="false">How do alerts reach me?</button>
+          <div class="faq-a"><p>Text and email, in real time, the moment a variant surfaces.</p></div>
+        </div>
+        <div class="faq-item rv">
+          <button class="faq-q" aria-expanded="false">What does it cost?</button>
+          <div class="faq-a"><p>Free for up to 3 artists or items. $10 a month lifts the limit, with a 30-day free trial.</p></div>
+        </div>
+        <div class="faq-item rv">
+          <button class="faq-q" aria-expanded="false">Where does the data come from?</button>
+          <div class="faq-a"><p>Discogs: release metadata and marketplace listings. The catalog data is theirs; Wax is the wire on top.</p></div>
+        </div>
+        <div class="faq-item rv">
+          <button class="faq-q" aria-expanded="false">Is there a phone app?</button>
+          <div class="faq-a"><p>Web today. iOS and Android are next.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="fwrap">
+    <a class="brand" href="/wax/" aria-label="Wax home"><span class="dot" aria-hidden="true"></span>WAX</a>
+    <div class="flink">
+      <a href="/wax/app/">The app</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+      <a href="/wax/privacy/">Privacy</a>
+      <a href="/wax/terms/">Terms</a>
+    </div>
+    <p class="made"><a href="https://wearedogs.net">This product was made by DOGS</a></p>
+    <p class="data cookies">No cookies. No trackers. Nothing to accept.</p>
+    <p class="data cat">WAX-4000 SERIES &mdash; CUT AT 33&#8533; RPM</p>
+  </div>
+</footer>
+
+<div class="sticky"><a class="btn" href="/wax/app/">Open the app</a></div>
+
+<script>
+(function(){
+  "use strict";
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* header border on scroll */
+  var hdr = document.getElementById("hdr");
+  var onScroll = function(){ hdr.classList.toggle("scrolled", window.scrollY > 8); };
+  window.addEventListener("scroll", onScroll, {passive:true});
+  onScroll();
+
+  /* ticker: duplicate track for a seamless loop */
+  var track = document.getElementById("tickerTrack");
+  if (track && !reduce) { track.innerHTML += track.innerHTML; }
+
+  /* scroll reveals */
+  var els = document.querySelectorAll("section .rv, footer .rv");
+  if ("IntersectionObserver" in window && !reduce) {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+      });
+    }, {threshold: 0.12, rootMargin: "0px 0px -8% 0px"});
+    els.forEach(function(el){ io.observe(el); });
+  } else {
+    els.forEach(function(el){ el.classList.add("in"); });
+  }
+
+  /* faq accordion */
+  document.querySelectorAll(".faq-item").forEach(function(item){
+    var q = item.querySelector(".faq-q");
+    q.addEventListener("click", function(){
+      var open = item.classList.toggle("open");
+      q.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  });
+})();
+</script>
+</body>
 </html>
