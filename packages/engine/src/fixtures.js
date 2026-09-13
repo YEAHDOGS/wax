@@ -1,7 +1,7 @@
 /**
  * Fixture builders for tests and demos. Shapes mirror the Discogs payloads
  * the live adapter will normalize (listing id, price, condition, seller) —
- * the public collection `REDACTED` can seed these later, but no fixture here
+ * a public Discogs collection can seed this later, but no fixture here
  * depends on any real account or any network.
  */
 
